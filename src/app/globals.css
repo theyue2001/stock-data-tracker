@@ -1,26 +1,266 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Domain tokens: Taiwan market convention is 漲紅跌綠 — red = up, green = down. */
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-flat: var(--flat);
+  --color-heat-hot: var(--heat-hot);
+  --color-heat-warm: var(--heat-warm);
+  --color-heat-neutral: var(--heat-neutral);
+  --color-heat-cool: var(--heat-cool);
+  --color-heat-cold: var(--heat-cold);
+  --color-grid: var(--grid);
+  --color-panel: var(--panel);
+  --color-panel-raised: var(--panel-raised);
+
+  /* Modernist accent ramp (design_handoff_industry_radar) */
+  --color-rd-bg: var(--rd-bg);
+  --color-rd-panel: var(--rd-panel);
+  --color-rd-text: var(--rd-text);
+  --color-rd-accent: var(--rd-accent);
+  --color-rd-up: var(--rd-up);
+  --color-rd-up-soft: var(--rd-up-soft);
+  --color-rd-down: var(--rd-down);
+  --color-rd-down-soft: var(--rd-down-soft);
+  --color-rd-warn: var(--rd-warn);
+  --color-rd-warn-soft: var(--rd-warn-soft);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Light theme kept functional, but the product is designed dark-first
+   (spec §12) and the app shell forces .dark. */
+:root {
+  --background: oklch(0.98 0.003 250);
+  --foreground: oklch(0.18 0.015 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.015 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.015 250);
+  --primary: oklch(0.55 0.14 235);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.006 250);
+  --secondary-foreground: oklch(0.25 0.015 250);
+  --muted: oklch(0.95 0.006 250);
+  --muted-foreground: oklch(0.5 0.015 250);
+  --accent: oklch(0.94 0.02 235);
+  --accent-foreground: oklch(0.3 0.06 235);
+  --destructive: oklch(0.58 0.21 25);
+  --border: oklch(0.9 0.008 250);
+  --input: oklch(0.9 0.008 250);
+  --ring: oklch(0.55 0.14 235);
+  --panel: oklch(1 0 0);
+  --panel-raised: oklch(0.97 0.004 250);
+  --grid: oklch(0.9 0.008 250);
+
+  --up: oklch(0.55 0.21 22);
+  --up-soft: oklch(0.93 0.05 22);
+  --down: oklch(0.55 0.15 152);
+  --down-soft: oklch(0.93 0.05 152);
+  --flat: oklch(0.55 0.012 250);
+
+  --heat-hot: oklch(0.58 0.2 22);
+  --heat-warm: oklch(0.68 0.15 55);
+  --heat-neutral: oklch(0.7 0.09 90);
+  --heat-cool: oklch(0.62 0.1 200);
+  --heat-cold: oklch(0.55 0.1 245);
+
+  --chart-1: oklch(0.6 0.16 235);
+  --chart-2: oklch(0.62 0.17 22);
+  --chart-3: oklch(0.66 0.13 152);
+  --chart-4: oklch(0.68 0.14 62);
+  --chart-5: oklch(0.6 0.16 292);
+
+  --radius: 0.375rem;
+  --sidebar: oklch(0.97 0.004 250);
+  --sidebar-foreground: oklch(0.18 0.015 250);
+  --sidebar-primary: oklch(0.55 0.14 235);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.02 235);
+  --sidebar-accent-foreground: oklch(0.3 0.06 235);
+  --sidebar-border: oklch(0.9 0.008 250);
+  --sidebar-ring: oklch(0.55 0.14 235);
+}
+
+/* Dark: the primary (and only shipped) design target — the Modernist system
+   from design_handoff_industry_radar/README.md §Design Tokens, reproduced as
+   exact hex/rgba rather than approximated in oklch so colors match the
+   handoff pixel-for-pixel. Taiwan convention: red = up, green = down. */
+.dark {
+  --background: #171514;
+  --foreground: #f3f2f2;
+  --card: #1d1b1a;
+  --card-foreground: #f3f2f2;
+  --popover: #1d1b1a;
+  --popover-foreground: #f3f2f2;
+  --primary: #ff563c;
+  --primary-foreground: #171514;
+  --secondary: #232120;
+  --secondary-foreground: #f3f2f2;
+  --muted: #232120;
+  --muted-foreground: rgba(243, 242, 242, 0.55);
+  --accent: rgba(255, 86, 60, 0.14);
+  --accent-foreground: #ff8a70;
+  --destructive: #ff5a3d;
+  --border: rgba(243, 242, 242, 0.12);
+  --input: rgba(243, 242, 242, 0.2);
+  --ring: #ff563c;
+  --panel: #1d1b1a;
+  --panel-raised: rgba(243, 242, 242, 0.05);
+  --grid: rgba(243, 242, 242, 0.12);
+
+  --up: #ff5a3d;
+  --up-soft: rgba(255, 86, 60, 0.16);
+  --down: #3dae7c;
+  --down-soft: rgba(61, 174, 124, 0.14);
+  --flat: rgba(243, 242, 242, 0.55);
+
+  --heat-hot: #ff563c;
+  --heat-warm: rgba(255, 86, 60, 0.7);
+  --heat-neutral: rgba(255, 86, 60, 0.42);
+  --heat-cool: rgba(243, 242, 242, 0.3);
+  --heat-cold: rgba(243, 242, 242, 0.3);
+
+  --chart-1: #ff563c;
+  --chart-2: #3dae7c;
+  --chart-3: #e6b23a;
+  --chart-4: rgba(243, 242, 242, 0.55);
+  --chart-5: #ff8a70;
+
+  --sidebar: #1d1b1a;
+  --sidebar-foreground: rgba(243, 242, 242, 0.72);
+  --sidebar-primary: #ff563c;
+  --sidebar-primary-foreground: #171514;
+  --sidebar-accent: rgba(243, 242, 242, 0.06);
+  --sidebar-accent-foreground: #f3f2f2;
+  --sidebar-border: rgba(243, 242, 242, 0.14);
+  --sidebar-ring: #ff563c;
+
+  --radius: 0px;
+
+  /* Raw Modernist tokens for components that need exact values Tailwind's
+     color+opacity utilities can't express (see design_handoff README
+     "Design Tokens"). */
+  --rd-bg: #171514;
+  --rd-panel: #1d1b1a;
+  --rd-text: #f3f2f2;
+  --rd-text-secondary: rgba(243, 242, 242, 0.55);
+  --rd-text-muted: rgba(243, 242, 242, 0.4);
+  --rd-line: rgba(243, 242, 242, 0.12);
+  --rd-rule: rgba(243, 242, 242, 0.32);
+  --rd-hover: rgba(243, 242, 242, 0.05);
+  --rd-accent: #ff563c;
+  --rd-accent-word: #ff8a70;
+  --rd-accent-hover: #ff9783;
+  --rd-accent-text: #ffc4b8;
+  --rd-up: #ff5a3d;
+  --rd-up-word: #ff8a70;
+  --rd-down: #3dae7c;
+  --rd-down-word: #6cc79d;
+  --rd-warn: #e6b23a;
+  --rd-warn-word: #e6c26a;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  html {
+    @apply font-sans;
+  }
+  ::selection {
+    background: rgba(255, 86, 60, 0.35);
+  }
+  a {
+    color: var(--rd-accent);
+  }
+  a:hover {
+    color: var(--rd-accent-hover);
+  }
+  /* Financial data must align in columns and never reflow when digits change. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* The Modernist "signature" rule that opens every section/table/strip. */
+  .rd-rule {
+    border-top: 2px solid var(--rd-rule);
+  }
+  .rd-hairline {
+    border-bottom: 1px solid var(--rd-line);
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }

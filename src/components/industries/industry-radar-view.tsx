@@ -1,0 +1,71 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { FilterChip } from "@/components/radar/filter-chip";
+import { IndustryCard } from "@/components/industries/industry-card";
+import type { IndustryRadarRow } from "@/lib/queries";
+import type { IndustryStatus } from "@/lib/types";
+
+// The handoff's filter set is 全部/加速中/轉強/早期轉強/盤整/過熱/轉弱, but
+// IndustryStatus (src/lib/types.ts) only models 5 states — there is no
+// industry-level "early strengthening" distinct from "strengthening" in the
+// real scoring pipeline (that granularity only exists for stocks). Showing a
+// chip that can never match anything would be a broken control, so this
+// screen renders the 5 real statuses plus 全部 instead of a non-functional
+// 7th chip — a genuine schema constraint per AGENTS.md, not a stylistic cut.
+const STATUS_FILTERS: Array<{ value: IndustryStatus | "all"; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "accelerating", label: "加速中" },
+  { value: "strengthening", label: "轉強" },
+  { value: "neutral", label: "盤整" },
+  { value: "overheated", label: "過熱" },
+  { value: "weakening", label: "轉弱" },
+];
+
+type SortMode = "heat" | "delta";
+
+export function IndustryRadarView({ rows, watchedIds }: { rows: IndustryRadarRow[]; watchedIds: Set<string> }) {
+  const [status, setStatus] = useState<IndustryStatus | "all">("all");
+  const [sort, setSort] = useState<SortMode>("heat");
+
+  const ranked = useMemo(() => {
+    const byToday = [...rows].sort((a, b) => b.scoreToday - a.scoreToday);
+    const byWeekAgo = [...rows].sort((a, b) => b.scoreWeekAgo - a.scoreWeekAgo);
+    const rankToday = new Map(byToday.map((r, i) => [r.id, i + 1]));
+    const rankWeekAgo = new Map(byWeekAgo.map((r, i) => [r.id, i + 1]));
+    return byToday.map((r) => ({ row: r, rank: rankToday.get(r.id)!, rankDelta: rankWeekAgo.get(r.id)! - rankToday.get(r.id)! }));
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    const subset = status === "all" ? ranked : ranked.filter((r) => r.row.status === status);
+    if (sort === "delta") return [...subset].sort((a, b) => Math.abs(b.rankDelta) - Math.abs(a.rankDelta));
+    return subset;
+  }, [ranked, status, sort]);
+
+  return (
+    <div className="px-6 pb-6">
+      <div className="flex flex-wrap items-baseline gap-3.5 py-[18px]">
+        <h1 className="text-[22px] font-black">產業雷達</h1>
+        <span className="text-[11px] font-medium text-[var(--rd-text-secondary)]">{rows.length} 個產業 · 2–3 秒讀懂一張卡</span>
+        <span className="ml-auto font-mono text-[10px] text-[var(--rd-text-muted)]">HEAT 0–100</span>
+      </div>
+
+      <div className="rd-rule flex flex-wrap items-center gap-2 py-3">
+        {STATUS_FILTERS.map((f) => (
+          <FilterChip key={f.value} label={f.label} active={status === f.value} onClick={() => setStatus(f.value)} />
+        ))}
+        <span className="ml-auto text-[10px] font-medium text-[var(--rd-text-muted)]">排序</span>
+        <FilterChip label="依熱度" active={sort === "heat"} onClick={() => setSort("heat")} />
+        <FilterChip label="依排名變化" active={sort === "delta"} onClick={() => setSort("delta")} />
+      </div>
+
+      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+        {filtered.map(({ row, rank, rankDelta }) => (
+          <IndustryCard key={row.id} row={row} rank={rank} rankDelta={rankDelta} watched={watchedIds.has(row.id)} />
+        ))}
+      </div>
+
+      {filtered.length === 0 && <p className="py-10 text-center text-[12px] text-[var(--rd-text-secondary)]">沒有符合篩選條件的產業。</p>}
+    </div>
+  );
+}
