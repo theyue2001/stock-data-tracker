@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-fba0d22e-e174-43fa-a291-67ce81a324fa/styles.css">
+<script src="_ds/modernist-fba0d22e-e174-43fa-a291-67ce81a324fa/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%}body{background:#171514;font-family:Archivo,'Noto Sans TC',system-ui,sans-serif;font-size:15px}a{color:#ff563c}a:hover{color:#ff9783}::selection{background:rgba(255,86,60,.35)}</style>
+</helmet>
+<div style="display:flex;height:100vh;min-width:1280px;background:#171514;color:#f3f2f2;overflow:hidden">
+  <div style="width:200px;flex:none;background:#1d1b1a;border-right:1px solid rgba(243,242,242,.14);display:flex;flex-direction:column">
+    <div style="padding:20px 16px 18px;border-bottom:2px solid rgba(243,242,242,.32)">
+      <div style="width:14px;height:14px;background:#ff563c;margin-bottom:10px"></div>
+      <div style="font:900 16px 'Noto Sans TC',sans-serif;letter-spacing:.04em">台股產業雷達</div>
+      <div style="font:500 8.5px 'IBM Plex Mono',monospace;letter-spacing:.22em;color:rgba(243,242,242,.4);margin-top:3px">INDUSTRY RADAR</div>
+    </div>
+    <div style="display:flex;flex-direction:column;padding:10px 0">
+      <sc-for list="{{ nav }}" as="it" hint-placeholder-count="7">
+        <div onClick="{{ it.go }}" style="{{ it.ws }}" style-hover="{{ it.hov }}"><span style="font:{{ it.lf }}">{{ it.l }}</span><span style="font:500 9px 'IBM Plex Mono',monospace;opacity:.45;margin-left:auto">{{ it.num }}</span></div>
+      </sc-for>
+    </div>
+    <div style="margin-top:auto;padding:14px 16px;border-top:1px solid rgba(243,242,242,.14);font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.45);line-height:1.8">2026/08/21 FRI<br>收盤資料 · 20:00 更新</div>
+  </div>
+  <div style="flex:1;min-width:0;overflow-y:auto">
+
+    <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="總覽" style="padding:0 24px 24px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 12px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">市場總覽</div>
+        <div style="font:700 11px 'Noto Sans TC',sans-serif;padding:4px 10px;background:rgba(255,86,60,.14);color:#ff8a70">多頭延續 · 類股輪動加速</div>
+        <div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-left:auto">LAST UPDATE 20:00 TST</div>
+      </div>
+      <sc-if value="{{ poster }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;background:#ff563c;color:#171514;padding:13px 18px;margin-bottom:16px">
+        <div style="font:800 20px/1.3 'Noto Sans TC',sans-serif">資金正離開 金融・面板，轉入 航運・記憶體・光通訊</div>
+        <div style="margin-left:auto;font:600 9.5px 'IBM Plex Mono',monospace;letter-spacing:.18em;opacity:.7">CAPITAL ROTATION · TODAY</div>
+      </div>
+      </sc-if>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);border-top:2px solid rgba(243,242,242,.32);border-bottom:1px solid rgba(243,242,242,.14)">
+        <div style="padding:12px 14px 12px 0;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">加權指數 TAIEX</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;margin-top:4px">24,187.65</div><div style="font:600 12px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#ff5a3d;margin-top:2px">▲ 206.34（+0.86%）</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">櫃買指數 OTC</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;margin-top:4px">268.44</div><div style="font:600 12px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#ff5a3d;margin-top:2px">▲ 2.98（+1.12%）</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">成交金額</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;margin-top:4px">4,820 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">較 5 日均 <span style="color:#ff5a3d">+18%</span></div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">外資</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#ff5a3d;margin-top:4px">+182.4 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">連 3 買 · 集中電子</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">投信</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#ff5a3d;margin-top:4px">+36.2 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">連 8 買 · 中小型</div></div>
+        <div style="padding:12px 0 12px 14px"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">風險溫度</div><div style="font:700 20px 'Noto Sans TC',sans-serif;color:#e6b23a;margin-top:4px">偏熱</div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">融資增速 +2.8%</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 336px;gap:24px;padding-top:18px">
+        <div>
+          <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">產業熱度排行</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">INDUSTRY HEAT RANKING</span><span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4);margin-left:auto">☆ 加入追蹤 · 點列開產業雷達</span></div>
+          <div style="display:grid;grid-template-columns:26px 52px 1fr 148px 44px 92px 92px 100px;column-gap:6px;padding:10px 0 7px;border-bottom:1px solid rgba(243,242,242,.32);font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)"><span></span><span>排名</span><span>產業</span><span>熱度</span><span>趨勢</span><span>資金流</span><span>領先指標</span><span>狀態</span></div>
+          <sc-for list="{{ ovRows }}" as="r" hint-placeholder-count="8">
+            <div onClick="{{ r.open }}" style="display:grid;grid-template-columns:26px 52px 1fr 148px 44px 92px 92px 100px;column-gap:6px;align-items:center;padding:{{ pad }} 0;border-bottom:1px solid rgba(243,242,242,.12);cursor:pointer;background:{{ r.hl }}" style-hover="background:rgba(243,242,242,.05)">
+              <span onClick="{{ r.star }}" style="cursor:pointer;font-size:13px;color:{{ r.sc2 }};text-align:center">{{ r.sg }}</span>
+              <span style="font:600 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">{{ r.rank }} <span style="font:600 9.5px 'IBM Plex Mono',monospace;color:{{ r.dC }}">{{ r.dT }}</span></span>
+              <span style="font:700 13.5px 'Noto Sans TC',sans-serif">{{ r.n }}</span>
+              <span style="display:flex;align-items:center;gap:8px"><span style="width:84px;height:4px;background:rgba(243,242,242,.12)"><span style="display:block;height:4px;width:{{ r.bw }};background:{{ r.bc }}"></span></span><span style="font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">{{ r.h }}</span></span>
+              <span style="font:600 14px Archivo,sans-serif;color:{{ r.tc }}">{{ r.t }}</span>
+              <span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ r.fc }}">{{ r.flow }}</span>
+              <span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ r.lc }}">{{ r.lead }}</span>
+              <span><span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ r.bBg }};border:1px solid {{ r.bBd }};color:{{ r.bC }}">{{ r.bT }}</span></span>
+            </div>
+          </sc-for>
+          <div style="display:flex;gap:18px;align-items:center;border-top:2px solid rgba(243,242,242,.32);margin-top:2px;padding-top:10px"><span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">最弱產業</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:#3dae7c">金融 48 ↘</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:#3dae7c">面板 45 ↓</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:#3dae7c">原物料 41 ↓</span><span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4);margin-left:auto">資金持續流出 · 領先指標惡化</span></div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:16px;border-top:2px solid rgba(243,242,242,.32);padding-top:12px">
+            <span style="font:700 12px 'Noto Sans TC',sans-serif">主題監測</span>
+            <span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">具延續性</span>
+            <span style="font:500 11px 'Noto Sans TC',sans-serif;border:1px solid rgba(255,86,60,.5);color:#ff8a70;padding:3px 9px">記憶體漲價循環</span>
+            <span style="font:500 11px 'Noto Sans TC',sans-serif;border:1px solid rgba(255,86,60,.5);color:#ff8a70;padding:3px 9px">AI 資料中心電力</span>
+            <span style="font:500 11px 'Noto Sans TC',sans-serif;border:1px solid rgba(255,86,60,.5);color:#ff8a70;padding:3px 9px">800G → 1.6T 升級</span>
+            <span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);margin-left:10px">已過熱</span>
+            <span style="font:500 11px 'Noto Sans TC',sans-serif;border:1px solid rgba(230,178,58,.5);color:#e6c26a;padding:3px 9px">散熱 · 乖離過大</span>
+            <span style="font:500 11px 'Noto Sans TC',sans-serif;border:1px solid rgba(230,178,58,.5);color:#e6c26a;padding:3px 9px">無人機 · 換手過快</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">領先指標異動</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">SIGNALS</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(243,242,242,.14)"><div style="flex:1"><div style="font:600 12px 'Noto Sans TC',sans-serif">SCFI 綜合指數</div><div style="font:400 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-top:2px">上海航交所 · 08/15</div></div><div style="text-align:right"><div style="font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">2,143.6</div><div style="font:600 11px Archivo,sans-serif;color:#ff5a3d">+4.2% ↑ 連 3 週</div></div></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(243,242,242,.14)"><div style="flex:1"><div style="font:600 12px 'Noto Sans TC',sans-serif">DDR5 16Gb 現貨</div><div style="font:400 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-top:2px">DRAMeXchange · 08/20</div></div><div style="text-align:right"><div style="font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">$5.84</div><div style="font:600 11px Archivo,sans-serif;color:#ff5a3d">+2.1% 由跌轉升</div></div></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(243,242,242,.14)"><div style="flex:1"><div style="font:600 12px 'Noto Sans TC',sans-serif">美西線運價 / FEU</div><div style="font:400 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-top:2px">Drewry WCI · 08/18</div></div><div style="text-align:right"><div style="font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">$2,860</div><div style="font:600 11px Archivo,sans-serif;color:#ff5a3d">+6.8% ↑</div></div></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 0"><div style="flex:1"><div style="font:600 12px 'Noto Sans TC',sans-serif">800G 光模組出貨</div><div style="font:400 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-top:2px">供應鏈調查 · 08/19</div></div><div style="text-align:right"><div style="font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">月增 +12%</div><div style="font:600 11px Archivo,sans-serif;color:#ff5a3d">預估上修</div></div></div>
+          </div>
+          <div>
+            <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">資金輪動</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">ROTATION</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0 4px">
+              <div style="flex:1;border:1px solid rgba(61,174,124,.4);padding:9px 10px"><div style="font:500 9.5px 'Noto Sans TC',sans-serif;color:#3dae7c">流出</div><div style="font:600 12px 'Noto Sans TC',sans-serif;margin-top:4px;line-height:1.7">金融 −41億<br>面板 −18億<br>原物料 −12億</div></div>
+              <div style="font:700 16px Archivo,sans-serif;color:#ff5a3d">→</div>
+              <div style="flex:1;border:1px solid rgba(255,86,60,.5);background:rgba(255,86,60,.07);padding:9px 10px"><div style="font:500 9.5px 'Noto Sans TC',sans-serif;color:#ff8a70">流入</div><div style="font:600 12px 'Noto Sans TC',sans-serif;margin-top:4px;line-height:1.7">航運 +86億<br>記憶體 +64億<br>光通訊 +38億</div></div>
+            </div>
+          </div>
+          <div>
+            <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">風險與催化</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">RISK / EVENTS</span></div>
+            <div style="display:flex;gap:8px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(243,242,242,.14)"><span style="width:7px;height:7px;background:#e6b23a;flex:none"></span><span style="font:500 12px/1.5 'Noto Sans TC',sans-serif">融資餘額 3,120 億，增速 +2.8% <span style="color:#e6c26a">偏熱</span></span></div>
+            <div style="display:flex;gap:8px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(243,242,242,.14)"><span style="width:7px;height:7px;background:#ff563c;flex:none"></span><span style="font:500 12px/1.5 'Noto Sans TC',sans-serif"><span style="font:600 10px 'IBM Plex Mono',monospace">08/25</span> NVIDIA 財報 · AI 鏈事件風險</span></div>
+            <div style="display:flex;gap:8px;align-items:baseline;padding:8px 0"><span style="width:7px;height:7px;background:rgba(243,242,242,.4);flex:none"></span><span style="font:500 12px/1.5 'Noto Sans TC',sans-serif">台幣 32.84 續貶 · 利出口電子</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isRadar }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="產業雷達" style="padding:0 24px 24px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 12px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">產業雷達</div>
+        <div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">13 個產業 · 2–3 秒讀懂一張卡</div>
+        <div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-left:auto">HEAT 0–100</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;border-top:2px solid rgba(243,242,242,.32);padding:12px 0;flex-wrap:wrap">
+        <sc-for list="{{ rChips }}" as="c" hint-placeholder-count="7">
+          <span onClick="{{ c.go }}" style="cursor:pointer;font:500 11.5px 'Noto Sans TC',sans-serif;padding:4px 11px;{{ c.cs }}" style-hover="border-color:rgba(255,86,60,.6)">{{ c.l }}</span>
+        </sc-for>
+        <span style="margin-left:auto;font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">排序</span>
+        <sc-for list="{{ rSorts }}" as="c" hint-placeholder-count="2">
+          <span onClick="{{ c.go }}" style="cursor:pointer;font:500 11.5px 'Noto Sans TC',sans-serif;padding:4px 11px;{{ c.cs }}" style-hover="border-color:rgba(255,86,60,.6)">{{ c.l }}</span>
+        </sc-for>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+        <sc-for list="{{ cards }}" as="c" hint-placeholder-count="9">
+          <div onClick="{{ c.open }}" style="background:#1d1b1a;border:1px solid rgba(243,242,242,.14);padding:14px 16px;display:flex;flex-direction:column;gap:10px;cursor:pointer" style-hover="border-color:rgba(255,86,60,.55)">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font:700 15px 'Noto Sans TC',sans-serif">{{ c.n }}</span><span onClick="{{ c.star }}" style="cursor:pointer;font-size:13px;color:{{ c.sc2 }}">{{ c.sg }}</span><span style="margin-left:auto"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ c.bBg }};border:1px solid {{ c.bBd }};color:{{ c.bC }}">{{ c.bT }}</span></span></div>
+            <div style="display:flex;align-items:baseline;gap:10px"><span style="font:800 30px Archivo,sans-serif;font-variant-numeric:tabular-nums">{{ c.h }}</span><span style="font:600 17px Archivo,sans-serif;color:{{ c.tc }}">{{ c.t }}</span><span style="font:600 11px 'IBM Plex Mono',monospace;color:{{ c.dC }}">{{ c.dT }}</span><span style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-left:auto">RANK #{{ c.rank }}</span></div>
+            <div style="height:4px;background:rgba(243,242,242,.12)"><div style="height:4px;width:{{ c.bw }};background:{{ c.bc }}"></div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px">
+              <div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(243,242,242,.12);padding:3px 0"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">資金流</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ c.fc }}">{{ c.flow }}</span></div>
+              <div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(243,242,242,.12);padding:3px 0"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">領先指標</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ c.lc }}">{{ c.lead }}</span></div>
+              <div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(243,242,242,.12);padding:3px 0"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">基本面動能</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ c.fdc }}">{{ c.fund }}</span></div>
+              <div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(243,242,242,.12);padding:3px 0"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">技術面動能</span><span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ c.tec }}">{{ c.tech }}</span></div>
+            </div>
+            <div style="display:flex;gap:8px"><span style="font:500 9.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4);flex:none;padding-top:1px">催化</span><span style="font:500 11.5px/1.5 'Noto Sans TC',sans-serif">{{ c.cat }}</span></div>
+            <div style="display:flex;gap:8px"><span style="font:500 9.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4);flex:none;padding-top:1px">風險</span><span style="font:500 11px/1.5 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.6)">{{ c.risk }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isStocks }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="個股雷達" style="padding:0 24px 24px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 12px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">個股雷達</div>
+        <div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">基本面體質 與 短線強度 分離判讀 · 不做買賣建議</div>
+        <div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-left:auto">{{ stkCount }} STOCKS</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;border-top:2px solid rgba(243,242,242,.32);padding:12px 0;flex-wrap:wrap">
+        <sc-for list="{{ sChips }}" as="c" hint-placeholder-count="9">
+          <span onClick="{{ c.go }}" style="cursor:pointer;font:500 11.5px 'Noto Sans TC',sans-serif;padding:4px 11px;{{ c.cs }}" style-hover="border-color:rgba(255,86,60,.6)">{{ c.l }}</span>
+        </sc-for>
+        <span onClick="{{ toggleWatchOnly }}" style="cursor:pointer;margin-left:auto;font:500 11.5px 'Noto Sans TC',sans-serif;padding:4px 11px;{{ woCs }}" style-hover="border-color:rgba(255,86,60,.6)">★ 僅看追蹤</span>
+      </div>
+      <div style="display:grid;grid-template-columns:26px 150px 64px 60px 62px 96px 80px 56px 44px 56px 56px minmax(140px,1fr) 92px;column-gap:8px;border-top:2px solid rgba(243,242,242,.32);padding:8px 0 0;font:500 9.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4)">
+        <span style="grid-column:1/7">市場・籌碼</span><span style="grid-column:7/9;border-left:2px solid rgba(243,242,242,.32);padding-left:10px">基本面體質</span><span style="grid-column:9/12;border-left:2px solid rgba(243,242,242,.32);padding-left:10px">短線強度</span><span style="grid-column:12/14;border-left:2px solid rgba(243,242,242,.32);padding-left:10px">訊號</span>
+      </div>
+      <div style="display:grid;grid-template-columns:26px 150px 64px 60px 62px 96px 80px 56px 44px 56px 56px minmax(140px,1fr) 92px;column-gap:8px;padding:8px 0 7px;border-bottom:1px solid rgba(243,242,242,.32);font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);align-items:end">
+        <span></span><span>個股</span><span style="text-align:right">價格</span><span onClick="{{ sortChg }}" style="text-align:right;cursor:pointer;color:#ff8a70">漲跌 {{ chgG }}</span><span style="text-align:right">量(張)</span><span>法人動向</span><span style="border-left:2px solid rgba(243,242,242,.32);padding-left:10px">營收動能</span><span>EPS</span><span onClick="{{ sortRs }}" style="border-left:2px solid rgba(243,242,242,.32);padding-left:10px;cursor:pointer;color:#ff8a70">RS {{ rsG }}</span><span>技術</span><span>位階</span><span style="border-left:2px solid rgba(243,242,242,.32);padding-left:10px">催化</span><span>狀態</span>
+      </div>
+      <sc-for list="{{ sRows }}" as="s" hint-placeholder-count="12">
+        <div style="display:grid;grid-template-columns:26px 150px 64px 60px 62px 96px 80px 56px 44px 56px 56px minmax(140px,1fr) 92px;column-gap:8px;align-items:center;padding:{{ pad }} 0;border-bottom:1px solid rgba(243,242,242,.12)" style-hover="background:rgba(243,242,242,.05)">
+          <span onClick="{{ s.star }}" style="cursor:pointer;font-size:13px;color:{{ s.sc2 }};text-align:center">{{ s.sg }}</span>
+          <span><span style="font:700 12.5px 'Noto Sans TC',sans-serif">{{ s.n }}</span> <span style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.45)">{{ s.tk }}</span><span style="display:block;font:400 9.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4);margin-top:1px">{{ s.ind }}</span></span>
+          <span style="font:600 12.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right">{{ s.p }}</span>
+          <span style="font:700 12px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;color:{{ s.cc }}">{{ s.cTxt }}</span>
+          <span style="font:500 11px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:rgba(243,242,242,.55);text-align:right">{{ s.v }}</span>
+          <span><span style="display:block;font:500 10.5px 'Noto Sans TC',sans-serif;color:{{ s.faC }}">外資 {{ s.fa }}億 {{ s.fd }}</span><span style="display:block;font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5);margin-top:1px">投信 {{ s.ta }}億</span></span>
+          <span style="border-left:2px solid rgba(243,242,242,.32);padding-left:10px"><span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums">{{ s.rv }}</span> <span style="font:500 10px 'Noto Sans TC',sans-serif;color:{{ s.rkC }}">{{ s.rk }}</span></span>
+          <span style="font:500 11px 'Noto Sans TC',sans-serif;color:{{ s.epC }}">{{ s.ep }}</span>
+          <span style="border-left:2px solid rgba(243,242,242,.32);padding-left:10px;font:{{ s.rsW }} 12px 'IBM Plex Mono',monospace;color:{{ s.rsC }}">{{ s.rs }}</span>
+          <span style="font:500 11px 'Noto Sans TC',sans-serif;color:{{ s.teC }}">{{ s.te }}</span>
+          <span style="font:500 11px 'Noto Sans TC',sans-serif;color:{{ s.poC }}">{{ s.po }}</span>
+          <span style="border-left:2px solid rgba(243,242,242,.32);padding-left:10px;font:500 11px/1.4 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.cat }}</span>
+          <span><span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ s.bBg }};border:1px solid {{ s.bBd }};color:{{ s.bC }}">{{ s.bT }}</span></span>
+        </div>
+      </sc-for>
+      <div style="display:flex;gap:16px;padding-top:10px;font:400 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4)"><span>RS＝相對大盤強度（0–100）</span><span>位階＝股價所處區間位置</span><span>點欄位「漲跌」「RS」可排序</span></div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isWatch }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="追蹤清單" style="padding:0 24px 24px;max-width:1080px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 12px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">追蹤清單</div>
+        <div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">在任何頁面點 ☆ 即加入 · 自動標記重要變化</div>
+      </div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;margin-bottom:18px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">重要變化</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">ALERTS</span></div>
+        <div style="display:flex;gap:9px;padding:9px 0;border-bottom:1px solid rgba(243,242,242,.12)"><span style="width:7px;height:7px;background:#ff563c;flex:none;margin-top:5px"></span><span style="font:500 12px/1.5 'Noto Sans TC',sans-serif">光通訊 進入產業熱度前三（<span style="font:600 10.5px 'IBM Plex Mono',monospace;color:#ff5a3d">#8→#3</span>）</span><span style="margin-left:auto;font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.38)">20:00</span></div>
+        <div style="display:flex;gap:9px;padding:9px 0"><span style="width:7px;height:7px;background:#ff563c;flex:none;margin-top:5px"></span><span style="font:500 12px/1.5 'Noto Sans TC',sans-serif">外資連 4 日買超 <span style="font:600 11px 'IBM Plex Mono',monospace">2368</span> 金像電，累計 +18.6 億</span><span style="margin-left:auto;font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.38)">19:45</span></div>
+      </div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;margin-bottom:18px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">追蹤產業</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">INDUSTRIES</span></div>
+        <sc-if value="{{ wiEmpty }}" hint-placeholder-val="{{ false }}"><div style="font:400 11.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);padding:12px 0">尚未追蹤任何產業 — 到 總覽 或 產業雷達 點 ☆ 加入。</div></sc-if>
+        <sc-for list="{{ wInd }}" as="r" hint-placeholder-count="2">
+          <div style="display:grid;grid-template-columns:26px 1fr 120px 44px 110px 110px;column-gap:8px;align-items:center;padding:{{ pad }} 0;border-bottom:1px solid rgba(243,242,242,.12)">
+            <span onClick="{{ r.star }}" style="cursor:pointer;font-size:13px;color:#ff563c;text-align:center">★</span>
+            <span style="font:700 13px 'Noto Sans TC',sans-serif">{{ r.n }}</span>
+            <span style="font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums">熱度 {{ r.h }} <span style="font:600 9.5px 'IBM Plex Mono',monospace;color:{{ r.dC }}">{{ r.dT }}</span></span>
+            <span style="font:600 14px Archivo,sans-serif;color:{{ r.tc }}">{{ r.t }}</span>
+            <span style="font:500 11.5px 'Noto Sans TC',sans-serif;color:{{ r.fc }}">{{ r.flow }}</span>
+            <span><span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ r.bBg }};border:1px solid {{ r.bBd }};color:{{ r.bC }}">{{ r.bT }}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">追蹤個股</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">STOCKS</span></div>
+        <sc-if value="{{ wsEmpty }}" hint-placeholder-val="{{ false }}"><div style="font:400 11.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);padding:12px 0">尚未追蹤任何個股 — 到 個股雷達 點 ☆ 加入。</div></sc-if>
+        <sc-for list="{{ wStk }}" as="s" hint-placeholder-count="2">
+          <div style="display:grid;grid-template-columns:26px 1fr 80px 70px 60px 110px 110px;column-gap:8px;align-items:center;padding:{{ pad }} 0;border-bottom:1px solid rgba(243,242,242,.12)">
+            <span onClick="{{ s.star }}" style="cursor:pointer;font-size:13px;color:#ff563c;text-align:center">★</span>
+            <span><span style="font:700 12.5px 'Noto Sans TC',sans-serif">{{ s.n }}</span> <span style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.45)">{{ s.tk }}</span> <span style="font:400 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4)">{{ s.ind }}</span></span>
+            <span style="font:600 12.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right">{{ s.p }}</span>
+            <span style="font:700 12px Archivo,sans-serif;text-align:right;color:{{ s.cc }}">{{ s.cTxt }}</span>
+            <span style="font:600 12px 'IBM Plex Mono',monospace;color:{{ s.rsC }};text-align:right">{{ s.rs }}</span>
+            <span style="font:500 10.5px 'Noto Sans TC',sans-serif;color:{{ s.faC }};text-align:right">外資 {{ s.fa }}億</span>
+            <span style="text-align:right"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ s.bBg }};border:1px solid {{ s.bBd }};color:{{ s.bC }}">{{ s.bT }}</span></span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isFlow }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="資金流向" style="padding:0 24px 24px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 12px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">資金流向</div>
+        <div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">法人 × 產業 · 看見資金正在離開誰、進入誰</div>
+        <div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-left:auto">單位：億元 · 收盤更新</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:2px solid rgba(243,242,242,.32);border-bottom:1px solid rgba(243,242,242,.14)">
+        <div style="padding:12px 14px 12px 0;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">外資</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#ff5a3d;margin-top:4px">+182.4 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">連 3 買 · 集中航運與記憶體權值</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">投信</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#ff5a3d;margin-top:4px">+36.2 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">連 8 買 · 偏中小型成長股</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">自營商</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:#3dae7c;margin-top:4px">−12.6 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55);margin-top:2px">避險部位調節為主</div></div>
+        <div style="padding:12px 0 12px 14px"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">融資餘額</div><div style="font:700 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;margin-top:4px">3,120 <span style="font:500 12px 'Noto Sans TC',sans-serif">億</span></div><div style="font:500 11px 'Noto Sans TC',sans-serif;color:#e6c26a;margin-top:2px">增速 +2.8% · 偏熱</div></div>
+      </div>
+      <div style="margin-top:18px;border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">產業資金熱圖</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">FLOW HEATMAP</span><span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4);margin-left:auto">紅＝買超/流入 · 綠＝賣超/流出 · 色階＝強度 · 點產業名開細節</span></div>
+      <div style="display:grid;grid-template-columns:104px 84px 84px 84px 84px 68px 84px minmax(190px,1fr);column-gap:6px;padding:10px 0 7px;border-bottom:1px solid rgba(243,242,242,.32);font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)"><span>產業</span><span style="text-align:right">外資</span><span style="text-align:right">投信</span><span style="text-align:right">自營</span><span style="text-align:right">融資增速</span><span style="text-align:right">周轉率</span><span style="text-align:right">量能 vs 5日</span><span style="padding-left:14px">5 日累計買賣超</span></div>
+      <sc-for list="{{ flowRows }}" as="f" hint-placeholder-count="13">
+        <div style="display:grid;grid-template-columns:104px 84px 84px 84px 84px 68px 84px minmax(190px,1fr);column-gap:6px;align-items:center;padding:2px 0;border-bottom:1px solid rgba(243,242,242,.12)">
+          <span onClick="{{ f.go }}" style="cursor:pointer;font:700 12px 'Noto Sans TC',sans-serif" style-hover="color:#ff8a70">{{ f.n }}</span>
+          <span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;padding:7px 8px;background:{{ f.faBg }};color:{{ f.faC }}">{{ f.faT }}</span>
+          <span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;padding:7px 8px;background:{{ f.taBg }};color:{{ f.taC }}">{{ f.taT }}</span>
+          <span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;padding:7px 8px;background:{{ f.daBg }};color:{{ f.daC }}">{{ f.daT }}</span>
+          <span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;padding:7px 8px;background:{{ f.mgBg }};color:{{ f.mgC }}">{{ f.mgT }}</span>
+          <span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;color:rgba(243,242,242,.55);padding:7px 8px">{{ f.toT }}</span>
+          <span style="font:600 11.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;text-align:right;padding:7px 8px;background:{{ f.veBg }};color:{{ f.veC }}">{{ f.veT }}</span>
+          <span style="display:flex;align-items:center;gap:8px;padding-left:14px"><span style="flex:1;display:flex;justify-content:flex-end"><span style="height:8px;width:{{ f.d5L }};background:#3dae7c"></span></span><span style="width:1px;height:14px;background:rgba(243,242,242,.3);flex:none"></span><span style="flex:1"><span style="display:block;height:8px;width:{{ f.d5R }};background:#ff563c"></span></span><span style="font:600 11px Archivo,sans-serif;font-variant-numeric:tabular-nums;width:44px;text-align:right;color:{{ f.d5C }}">{{ f.d5T }}</span></span>
+        </div>
+      </sc-for>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:stretch;margin-top:18px;border-top:2px solid rgba(243,242,242,.32);padding-top:14px">
+        <div style="border:1px solid rgba(61,174,124,.4);padding:12px 14px"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:#3dae7c">資金流出（5 日累計）</div><div style="display:flex;gap:18px;margin-top:8px"><span style="font:600 13px 'Noto Sans TC',sans-serif">金融 <span style="color:#6cc79d;font-family:Archivo">−104 億</span></span><span style="font:600 13px 'Noto Sans TC',sans-serif">面板 <span style="color:#6cc79d;font-family:Archivo">−66 億</span></span><span style="font:600 13px 'Noto Sans TC',sans-serif">原物料 <span style="color:#6cc79d;font-family:Archivo">−48 億</span></span></div></div>
+        <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;padding:0 6px"><span style="font:800 20px Archivo,sans-serif;color:#ff5a3d">→</span><span style="font:500 9.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);text-align:center">大盤量能 +18%<br>台幣 32.84 貶</span></div>
+        <div style="border:1px solid rgba(255,86,60,.5);background:rgba(255,86,60,.07);padding:12px 14px"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:#ff8a70">資金流入（5 日累計）</div><div style="display:flex;gap:18px;margin-top:8px"><span style="font:600 13px 'Noto Sans TC',sans-serif">航運 <span style="color:#ff5a3d;font-family:Archivo">+215 億</span></span><span style="font:600 13px 'Noto Sans TC',sans-serif">記憶體 <span style="color:#ff5a3d;font-family:Archivo">+182 億</span></span><span style="font:600 13px 'Noto Sans TC',sans-serif">光通訊 <span style="color:#ff5a3d;font-family:Archivo">+96 億</span></span></div></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isSig }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="領先指標" style="padding:0 24px 24px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 12px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">領先指標</div>
+        <div style="font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">在股價反應前，先看見產業數據的轉折</div>
+        <div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4);margin-left:auto">12M TREND</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;border-top:2px solid rgba(243,242,242,.32);padding:12px 0;flex-wrap:wrap">
+        <sc-for list="{{ gChips }}" as="c" hint-placeholder-count="4">
+          <span onClick="{{ c.go }}" style="cursor:pointer;font:500 11.5px 'Noto Sans TC',sans-serif;padding:4px 11px;{{ c.cs }}" style-hover="border-color:rgba(255,86,60,.6)">{{ c.l }}</span>
+        </sc-for>
+        <span style="margin-left:auto;font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.4)">紅＝改善 · 綠＝惡化/壓力 · 灰＝持平</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+        <sc-for list="{{ sigCards }}" as="g" hint-placeholder-count="9">
+          <div style="background:#1d1b1a;border:1px solid rgba(243,242,242,.14);padding:14px 16px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font:700 13px 'Noto Sans TC',sans-serif">{{ g.n }}</span><span style="font:500 9px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4)">{{ g.grp }}</span><span style="margin-left:auto"><span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ g.dBg }};border:1px solid {{ g.dBd }};color:{{ g.dC }}">{{ g.dir }}</span></span></div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:8px"><span style="font:800 22px Archivo,sans-serif;font-variant-numeric:tabular-nums">{{ g.cur }}</span><span style="font:500 10.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">{{ g.unit }}</span><span style="font:700 12.5px Archivo,sans-serif;font-variant-numeric:tabular-nums;color:{{ g.chgC }}">{{ g.chg }}</span></div>
+            <svg viewBox="0 0 280 64" preserveAspectRatio="none" style="display:block;width:100%;height:64px;margin-top:8px"><polyline points="{{ g.ln }}" fill="none" stroke="{{ g.lc }}" stroke-width="1.6"></polyline><circle cx="{{ g.px }}" cy="{{ g.py }}" r="2.6" fill="{{ g.lc }}"></circle></svg>
+            <div style="display:flex;margin-top:8px;font:400 9.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.38)"><span>{{ g.src }}</span><span style="margin-left:auto">{{ g.upd }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isBrief }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="每日簡報" style="padding:0 24px 28px;max-width:920px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:18px 0 10px;flex-wrap:wrap">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">每日市場簡報</div>
+        <div style="font:500 10.5px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.45)">2026/08/21 FRI · 20:00 生成</div>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center"><span style="font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 8px;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 8px;border:1px solid rgba(243,242,242,.35);color:rgba(243,242,242,.7)">推論</span><span style="font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 8px;background:rgba(230,178,58,.14);color:#e6c26a">風險</span></span>
+      </div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">01</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">市場摘要</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">加權指數收 24,187.65（+0.86%），成交 4,820 億、較 5 日均量 +18%；上漲 612 家 / 下跌 312 家。</span></div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;border:1px solid rgba(243,242,242,.35);color:rgba(243,242,242,.7)">推論</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">量價齊揚且輪動加速，屬多頭延續格局；但指數貢獻集中，選股重於看指數。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">02</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">資金輪動</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">5 日累計：金融 −104 億、面板 −66 億、原物料 −48 億；航運 +215 億、記憶體 +182 億、光通訊 +96 億。</span></div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;border:1px solid rgba(243,242,242,.35);color:rgba(243,242,242,.7)">推論</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">屬「舊主流 → 新主流」交接而非避險撤出：資金離開防禦與弱勢族群，集中往有領先指標支撐的產業。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">03</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">最強 / 最弱產業</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">最強：貨櫃航運 86（加速中）、記憶體 82（轉強）、光通訊 76（早期轉強，排名 #8→#3）。最弱：原物料 41、面板 45、金融 48。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">04</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">重要指標變化</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">SCFI +4.2%（連 3 週上行）；DDR5 現貨由跌轉升 +2.1%；美西線運價 +6.8%；800G 光模組出貨月增 +12%。</span></div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(230,178,58,.14);color:#e6c26a">風險</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">有效運力 YoY +6.2% 持續攀升，為航運中期供給壓力；運價上行斜率若放緩需先降評。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">05</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">法人動向</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">外資 +182.4 億（連 3 買，集中航運、記憶體權值）；投信 +36.2 億（連 8 買，偏中小型）；自營 −12.6 億。</span></div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;border:1px solid rgba(243,242,242,.35);color:rgba(243,242,242,.7)">推論</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">投信連買中小型成長股，月底前作帳行情可能延續；外資動向以權值為風向球。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">06</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">新興主題</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;border:1px solid rgba(243,242,242,.35);color:rgba(243,242,242,.7)">推論</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">記憶體漲價循環、800G→1.6T 升級具延續性（領先指標同步改善）；「AI 資料中心電力」開始有資金試探，尚未形成主流。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">07</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">監測個股</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(255,86,60,.16);color:#ff9783">事實</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">上詮 3363（RS 98、早期轉強）、南亞科 2408（外資連 4 買）、金像電 2368（外資連 4 買 +18.6 億）、華邦電 2344（潛在補漲）。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">08</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">過熱區</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(230,178,58,.14);color:#e6c26a">風險</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">散熱：週乖離 +12%、量能未同步（奇鋐、雙鴻連日遭外資調節）。無人機：換手率 38%，題材輪動過快。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">09</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">主要風險</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0"><span style="flex:none;width:36px;text-align:center;font:600 9.5px 'Noto Sans TC',sans-serif;padding:2px 0;background:rgba(230,178,58,.14);color:#e6c26a">風險</span><span style="font:400 12.5px/1.75 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)">08/25 NVIDIA 財報為 AI 鏈單一事件風險；融資增速 +2.8% 偏熱，回檔時波動會被放大；台幣急升將壓縮電子匯兌利益。</span></div>
+      </div></div>
+      <div style="border-top:2px solid rgba(243,242,242,.32);margin-top:12px;padding-top:10px;display:grid;grid-template-columns:48px 1fr;column-gap:16px"><span style="font:800 16px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.3)">10</span><div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:2px">明日觀察</div>
+        <div style="font:400 12.5px/2 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85)"><span style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4)">·</span> 光通訊量能能否連三日擴張（確認早期轉強 → 轉強）<br><span style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4)">·</span> 散熱是否出現帶量長黑（過熱 → 轉弱的訊號）<br><span style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4)">·</span> 外資是否第 4 日買超、投信作帳是否延續<br><span style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4)">·</span> 週五 SCFI 更新；DDR5 合約價 9 月開議前的現貨走勢</div>
+      </div></div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="產業細節" style="padding:0 24px 24px">
+      <div style="padding:14px 0 0"><span onClick="{{ backToRadar }}" style="cursor:pointer;font:500 11px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.55)" style-hover="color:#ff8a70">← 產業雷達</span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 0 14px">
+        <div style="font:900 22px 'Noto Sans TC',sans-serif">{{ d.n }}</div>
+        <span style="font:500 10.5px 'Noto Sans TC',sans-serif;padding:3px 8px;background:{{ d.bBg }};border:1px solid {{ d.bBd }};color:{{ d.bC }}">{{ d.bT }}</span>
+        <span onClick="{{ d.star }}" style="cursor:pointer;font-size:15px;color:{{ d.sc2 }}">{{ d.sg }}</span>
+        <span style="margin-left:auto;font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.4)">HEAT RANK #{{ d.rank }}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);border-top:2px solid rgba(243,242,242,.32);border-bottom:1px solid rgba(243,242,242,.14)">
+        <div style="padding:12px 14px 12px 0;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">熱度分數</div><div style="font:800 20px Archivo,sans-serif;font-variant-numeric:tabular-nums;margin-top:4px">{{ d.h }} <span style="font:600 11px 'IBM Plex Mono',monospace;color:{{ d.dC }}">{{ d.dT }}</span></div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">趨勢</div><div style="font:800 20px Archivo,sans-serif;color:{{ d.tc }};margin-top:4px">{{ d.t }}</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">主流狀態</div><div style="font:700 15px 'Noto Sans TC',sans-serif;margin-top:8px">{{ dMs }}</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">資金流強度</div><div style="font:700 15px 'Noto Sans TC',sans-serif;color:{{ d.fc }};margin-top:8px">{{ d.flow }}</div></div>
+        <div style="padding:12px 14px;border-right:1px solid rgba(243,242,242,.14)"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">循環位置</div><div style="font:700 15px 'Noto Sans TC',sans-serif;margin-top:8px">{{ dCyc }}</div></div>
+        <div style="padding:12px 0 12px 14px"><div style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.5)">風險等級</div><div style="font:700 15px 'Noto Sans TC',sans-serif;color:{{ dRlC }};margin-top:8px">{{ dRl }}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;padding-top:18px">
+        <div>
+          <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">產業論點</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">THESIS</span></div>
+          <div style="font:400 13px/1.9 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.85);padding:8px 0 16px;max-width:640px">{{ dTh }}</div>
+          <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">領先指標</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">LEADING SIGNALS</span></div>
+          <sc-if value="{{ dSigEmpty }}" hint-placeholder-val="{{ false }}"><div style="font:400 11.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);padding:10px 0">此產業之領先指標序列建置中 — 先以熱度、資金流與催化事件判讀。</div></sc-if>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:10px">
+            <sc-for list="{{ dSig }}" as="g" hint-placeholder-count="4">
+              <div style="background:#1d1b1a;border:1px solid rgba(243,242,242,.14);padding:12px 14px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:700 12.5px 'Noto Sans TC',sans-serif">{{ g.n }}</span><span style="margin-left:auto"><span style="font:500 9.5px 'Noto Sans TC',sans-serif;padding:2px 7px;background:{{ g.dBg }};border:1px solid {{ g.dBd }};color:{{ g.dC }}">{{ g.dir }}</span></span></div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px"><span style="font:800 19px Archivo,sans-serif;font-variant-numeric:tabular-nums">{{ g.cur }}</span><span style="font:500 10px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45)">{{ g.unit }}</span><span style="font:700 12px Archivo,sans-serif;color:{{ g.chgC }}">{{ g.chg }}</span></div>
+                <svg viewBox="0 0 280 64" preserveAspectRatio="none" style="display:block;width:100%;height:52px;margin-top:6px"><polyline points="{{ g.ln }}" fill="none" stroke="{{ g.lc }}" stroke-width="1.6"></polyline><circle cx="{{ g.px }}" cy="{{ g.py }}" r="2.6" fill="{{ g.lc }}"></circle></svg>
+                <div style="display:flex;margin-top:6px;font:400 9px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.38)"><span>{{ g.src }}</span><span style="margin-left:auto">{{ g.upd }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">相關個股</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">STOCKS</span></div>
+            <sc-if value="{{ dStkEmpty }}" hint-placeholder-val="{{ false }}"><div style="font:400 11.5px 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.45);padding:10px 0">尚未收錄此產業個股。</div></sc-if>
+            <sc-for list="{{ dStk }}" as="s" hint-placeholder-count="3">
+              <div style="padding:8px 0;border-bottom:1px solid rgba(243,242,242,.12)">
+                <div style="display:flex;align-items:center;gap:7px"><span onClick="{{ s.star }}" style="cursor:pointer;font-size:12px;color:{{ s.sc2 }}">{{ s.sg }}</span><span style="font:700 12.5px 'Noto Sans TC',sans-serif">{{ s.n }}</span><span style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(243,242,242,.45)">{{ s.tk }}</span><span style="margin-left:auto"><span style="font:500 9.5px 'Noto Sans TC',sans-serif;padding:2px 7px;background:{{ s.bBg }};border:1px solid {{ s.bBd }};color:{{ s.bC }}">{{ s.bT }}</span></span></div>
+                <div style="display:flex;gap:12px;margin-top:4px;padding-left:19px;font:600 11px Archivo,sans-serif;font-variant-numeric:tabular-nums"><span>{{ s.p }}</span><span style="color:{{ s.cc }}">{{ s.cTxt }}</span><span style="color:{{ s.rsC }}">RS {{ s.rs }}</span><span style="font:500 10px 'Noto Sans TC',sans-serif;color:{{ s.faC }}">外資 {{ s.fa }}億</span></div>
+              </div>
+            </sc-for>
+          </div>
+          <div>
+            <div style="border-top:2px solid rgba(243,242,242,.32);padding-top:10px;display:flex;align-items:baseline;gap:10px"><span style="font:700 13px 'Noto Sans TC',sans-serif">催化與風險</span><span style="font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgba(243,242,242,.4)">EVENTS</span></div>
+            <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid rgba(243,242,242,.12)"><span style="flex:none;font:500 9.5px 'Noto Sans TC',sans-serif;color:#ff8a70;padding-top:2px">催化</span><span style="font:500 12px/1.6 'Noto Sans TC',sans-serif">{{ d.cat }}</span></div>
+            <div style="display:flex;gap:8px;padding:8px 0"><span style="flex:none;font:500 9.5px 'Noto Sans TC',sans-serif;color:#e6c26a;padding-top:2px">風險</span><span style="font:500 12px/1.6 'Noto Sans TC',sans-serif;color:rgba(243,242,242,.75)">{{ d.risk }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;總覽&quot;,&quot;產業雷達&quot;,&quot;個股雷達&quot;],&quot;default&quot;:&quot;總覽&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;行為&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;標準&quot;,&quot;緊湊&quot;],&quot;default&quot;:&quot;標準&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;顯示&quot;},&quot;rotationPoster&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;顯示&quot;}}">
+class Component extends DCLogic {
+  UP='#ff5a3d';UPS='#ff8a70';DN='#3dae7c';DNS='#6cc79d';MU='rgba(243,242,242,.55)';AM='#e6b23a';
+  IND=[
+    {n:'貨櫃航運',h:86,t:'↑',d:2,flow:'強勁流入',lead:'改善中',fund:'改善',tech:'強',cat:'美線運價連三漲、旺季前補庫存',risk:'新船運力回歸、運價回落',st:'加速中'},
+    {n:'記憶體',h:82,t:'↑',d:0,flow:'強勁流入',lead:'改善中',fund:'改善',tech:'強',cat:'DDR5 合約價調漲、HBM 產能排擠',risk:'現貨價基期已高、追價風險',st:'轉強'},
+    {n:'光通訊',h:76,t:'↗',d:5,flow:'中等流入',lead:'改善中',fund:'改善',tech:'轉強',cat:'800G 出貨上修、矽光子送樣放量',risk:'估值偏高、波動加大',st:'早期轉強'},
+    {n:'AI 伺服器',h:74,t:'↗',d:-1,flow:'中等流入',lead:'持平',fund:'穩定',tech:'強',cat:'08/25 NVIDIA 財報、GB300 出貨',risk:'財報前事件風險',st:'轉強'},
+    {n:'PCB / CCL',h:71,t:'→',d:0,flow:'中等流入',lead:'持平',fund:'穩定',tech:'中性',cat:'高階 CCL 供給偏緊',risk:'漲價動能鈍化',st:'盤整'},
+    {n:'散熱',h:68,t:'↘',d:-3,flow:'轉為中性',lead:'持平',fund:'穩定',tech:'轉弱',cat:'液冷滲透率持續提升',risk:'週乖離 +12%、高檔震盪',st:'過熱'},
+    {n:'半導體封測',h:66,t:'→',d:1,flow:'中性',lead:'持平',fund:'穩定',tech:'中性',cat:'CoWoS 擴產排程明確',risk:'訂單認列遞延',st:'盤整'},
+    {n:'半導體設備',h:63,t:'→',d:-2,flow:'中性',lead:'持平',fund:'穩定',tech:'中性',cat:'先進製程資本支出維持高檔',risk:'交期與認列波動',st:'中性'},
+    {n:'矽晶圓',h:58,t:'→',d:0,flow:'中性',lead:'持平',fund:'疲弱',tech:'中性',cat:'長約價回穩',risk:'產能利用率偏低',st:'中性'},
+    {n:'被動元件',h:52,t:'→',d:0,flow:'中性',lead:'持平',fund:'穩定',tech:'中性',cat:'車用庫存回補',risk:'終端需求平淡',st:'盤整'},
+    {n:'金融',h:48,t:'↘',d:-2,flow:'流出',lead:'轉弱',fund:'穩定',tech:'弱',cat:'升息循環尾聲',risk:'債券評價損失壓力',st:'轉弱'},
+    {n:'面板',h:45,t:'↓',d:-1,flow:'流出',lead:'惡化',fund:'疲弱',tech:'弱',cat:'—',risk:'報價續跌、稼動率下修',st:'轉弱'},
+    {n:'原物料',h:41,t:'↓',d:-2,flow:'流出',lead:'惡化',fund:'疲弱',tech:'弱',cat:'—',risk:'中國需求疲弱',st:'轉弱'}];
+  STK=[
+    {tk:'2603',n:'長榮',ind:'貨櫃航運',p:'268.50',c:4.2,v:'82,431',fa:'+12.4',fd:'連3買',ta:'+2.1',rv:'+38%',rk:'加速',ep:'上修',rs:94,te:'多頭',po:'突破',cat:'美線運價連三漲',st:'趨勢確認'},
+    {tk:'2609',n:'陽明',ind:'貨櫃航運',p:'112.00',c:3.8,v:'64,280',fa:'+8.6',fd:'連3買',ta:'+1.4',rv:'+31%',rk:'加速',ep:'上修',rs:91,te:'多頭',po:'突破',cat:'運價上行＋補庫存',st:'趨勢確認'},
+    {tk:'2615',n:'萬海',ind:'貨櫃航運',p:'98.70',c:5.1,v:'51,204',fa:'+6.2',fd:'連2買',ta:'+0.8',rv:'+26%',rk:'加速',ep:'上修',rs:89,te:'多頭',po:'中段',cat:'近洋線報價調漲',st:'早期轉強'},
+    {tk:'2408',n:'南亞科',ind:'記憶體',p:'92.40',c:6.8,v:'118,652',fa:'+18.2',fd:'連4買',ta:'+3.6',rv:'+42%',rk:'加速',ep:'上修',rs:96,te:'多頭',po:'突破',cat:'DDR4/5 合約價調漲',st:'趨勢確認'},
+    {tk:'2344',n:'華邦電',ind:'記憶體',p:'41.15',c:4.5,v:'96,410',fa:'+9.8',fd:'連2買',ta:'+1.2',rv:'+24%',rk:'加速',ep:'上修',rs:84,te:'多頭',po:'中段',cat:'利基型 DRAM 漲價',st:'潛在補漲'},
+    {tk:'8299',n:'群聯',ind:'記憶體',p:'612.00',c:2.2,v:'8,642',fa:'+2.4',fd:'連1買',ta:'+0.6',rv:'+18%',rk:'穩定',ep:'持平',rs:78,te:'多頭',po:'高檔',cat:'NAND 模組報價上調',st:'高檔整理'},
+    {tk:'3363',n:'上詮',ind:'光通訊',p:'214.50',c:9.9,v:'24,815',fa:'+4.1',fd:'連4買',ta:'+1.8',rv:'+52%',rk:'加速',ep:'上修',rs:98,te:'多頭',po:'突破',cat:'800G 出貨上修',st:'早期轉強'},
+    {tk:'4908',n:'波若威',ind:'光通訊',p:'156.00',c:6.2,v:'18,930',fa:'+2.8',fd:'連3買',ta:'+0.9',rv:'+34%',rk:'加速',ep:'上修',rs:93,te:'多頭',po:'突破',cat:'矽光子元件送樣',st:'早期轉強'},
+    {tk:'3081',n:'聯亞',ind:'光通訊',p:'388.00',c:4.0,v:'6,214',fa:'+1.6',fd:'連2買',ta:'+0.4',rv:'+21%',rk:'穩定',ep:'上修',rs:82,te:'整理',po:'中段',cat:'EML 需求回溫',st:'潛在補漲'},
+    {tk:'6669',n:'緯穎',ind:'AI 伺服器',p:'2,845.00',c:1.8,v:'3,182',fa:'+3.2',fd:'連1買',ta:'-0.5',rv:'+45%',rk:'穩定',ep:'持平',rs:76,te:'多頭',po:'高檔',cat:'GB300 出貨放量',st:'高檔整理'},
+    {tk:'3017',n:'奇鋐',ind:'散熱',p:'892.00',c:-2.4,v:'12,480',fa:'-4.6',fd:'連2賣',ta:'-1.1',rv:'+29%',rk:'穩定',ep:'持平',rs:64,te:'整理',po:'高檔',cat:'液冷滲透率提升',st:'過熱'},
+    {tk:'3324',n:'雙鴻',ind:'散熱',p:'745.00',c:-3.1,v:'9,864',fa:'-3.2',fd:'連3賣',ta:'-0.8',rv:'+25%',rk:'穩定',ep:'持平',rs:58,te:'整理',po:'高檔',cat:'—',st:'過熱'},
+    {tk:'2368',n:'金像電',ind:'PCB / CCL',p:'486.00',c:2.6,v:'15,208',fa:'+5.4',fd:'連4買',ta:'+1.6',rv:'+33%',rk:'加速',ep:'上修',rs:90,te:'多頭',po:'高檔',cat:'高階 HDI 產能滿載',st:'趨勢確認'},
+    {tk:'6274',n:'台燿',ind:'PCB / CCL',p:'312.00',c:1.2,v:'11,642',fa:'+1.8',fd:'連1買',ta:'+0.3',rv:'+27%',rk:'穩定',ep:'持平',rs:74,te:'多頭',po:'中段',cat:'高速 CCL 放量',st:'高檔整理'},
+    {tk:'2882',n:'國泰金',ind:'金融',p:'68.20',c:-1.1,v:'22,415',fa:'-6.8',fd:'連2賣',ta:'-0.4',rv:'+6%',rk:'穩定',ep:'持平',rs:42,te:'整理',po:'中段',cat:'—',st:'轉弱'},
+    {tk:'2409',n:'友達',ind:'面板',p:'16.80',c:-2.3,v:'48,210',fa:'-5.2',fd:'連4賣',ta:'-0.9',rv:'-8%',rk:'減速',ep:'下修',rs:31,te:'空頭',po:'低檔',cat:'—',st:'轉弱'},
+    {tk:'2382',n:'廣達',ind:'AI 伺服器',p:'335.50',c:2.1,v:'28,640',fa:'+7.8',fd:'連2買',ta:'+1.1',rv:'+29%',rk:'穩定',ep:'上修',rs:81,te:'多頭',po:'中段',cat:'GB300 L10 出貨爬坡',st:'趨勢確認'},
+    {tk:'3231',n:'緯創',ind:'AI 伺服器',p:'128.50',c:2.8,v:'52,310',fa:'+6.4',fd:'連3買',ta:'+0.9',rv:'+36%',rk:'加速',ep:'上修',rs:86,te:'多頭',po:'中段',cat:'AI 板卡份額提升',st:'潛在補漲'},
+    {tk:'2421',n:'建準',ind:'散熱',p:'145.00',c:-1.2,v:'8,420',fa:'-1.8',fd:'連1賣',ta:'-0.3',rv:'+21%',rk:'穩定',ep:'持平',rs:70,te:'整理',po:'高檔',cat:'水冷風扇新案',st:'高檔整理'},
+    {tk:'3037',n:'欣興',ind:'PCB / CCL',p:'198.50',c:1.5,v:'19,860',fa:'+2.6',fd:'連2買',ta:'+0.5',rv:'+22%',rk:'穩定',ep:'持平',rs:77,te:'多頭',po:'中段',cat:'ABF 稼動率回升',st:'高檔整理'},
+    {tk:'6488',n:'環球晶',ind:'矽晶圓',p:'612.00',c:0.8,v:'4,180',fa:'+1.2',fd:'連1買',ta:'+0.2',rv:'+9%',rk:'穩定',ep:'持平',rs:55,te:'整理',po:'低檔',cat:'利用率低檔回升',st:'潛在補漲'},
+    {tk:'3532',n:'台勝科',ind:'矽晶圓',p:'172.00',c:1.4,v:'2,640',fa:'+0.6',fd:'連1買',ta:'+0.1',rv:'+4%',rk:'穩定',ep:'持平',rs:52,te:'整理',po:'低檔',cat:'現貨價止跌',st:'潛在補漲'},
+    {tk:'3711',n:'日月光投控',ind:'半導體封測',p:'168.50',c:1.9,v:'24,150',fa:'+4.8',fd:'連3買',ta:'+0.8',rv:'+18%',rk:'穩定',ep:'上修',rs:79,te:'多頭',po:'中段',cat:'CoWoS 產能開出',st:'高檔整理'},
+    {tk:'2449',n:'京元電子',ind:'半導體封測',p:'128.00',c:3.2,v:'31,280',fa:'+5.6',fd:'連4買',ta:'+1.3',rv:'+26%',rk:'加速',ep:'上修',rs:88,te:'多頭',po:'突破',cat:'AI 晶片測試需求',st:'趨勢確認'},
+    {tk:'2327',n:'國巨',ind:'被動元件',p:'712.00',c:0.6,v:'3,860',fa:'+0.8',fd:'連1買',ta:'+0.2',rv:'+8%',rk:'穩定',ep:'持平',rs:61,te:'整理',po:'中段',cat:'車用回補、BB 轉正在即',st:'高檔整理'},
+    {tk:'2492',n:'華新科',ind:'被動元件',p:'98.60',c:1.1,v:'5,240',fa:'+0.4',fd:'連1買',ta:'+0.1',rv:'+3%',rk:'穩定',ep:'持平',rs:62,te:'整理',po:'低檔',cat:'標準品跌幅收斂',st:'潛在補漲'},
+    {tk:'3131',n:'弘塑',ind:'半導體設備',p:'1,150.00',c:1.6,v:'1,240',fa:'+0.9',fd:'連1買',ta:'+0.3',rv:'+16%',rk:'穩定',ep:'持平',rs:72,te:'多頭',po:'高檔',cat:'CoWoS 濕製程設備',st:'高檔整理'},
+    {tk:'3583',n:'辛耘',ind:'半導體設備',p:'428.00',c:0.9,v:'2,180',fa:'+0.5',fd:'連1買',ta:'+0.1',rv:'+11%',rk:'穩定',ep:'持平',rs:68,te:'整理',po:'中段',cat:'先進封裝再生晶圓',st:'高檔整理'},
+    {tk:'3481',n:'群創',ind:'面板',p:'13.85',c:-1.8,v:'38,420',fa:'-3.6',fd:'連3賣',ta:'-0.6',rv:'-6%',rk:'減速',ep:'下修',rs:34,te:'空頭',po:'低檔',cat:'—',st:'轉弱'},
+    {tk:'2002',n:'中鋼',ind:'原物料',p:'21.15',c:-0.7,v:'18,640',fa:'-2.8',fd:'連2賣',ta:'-0.2',rv:'-4%',rk:'減速',ep:'持平',rs:38,te:'空頭',po:'低檔',cat:'—',st:'轉弱'},
+    {tk:'1301',n:'台塑',ind:'原物料',p:'38.20',c:-0.9,v:'12,280',fa:'-1.9',fd:'連3賣',ta:'-0.3',rv:'-7%',rk:'減速',ep:'下修',rs:35,te:'空頭',po:'低檔',cat:'—',st:'轉弱'},
+    {tk:'2881',n:'富邦金',ind:'金融',p:'82.40',c:-0.8,v:'16,850',fa:'-4.2',fd:'連2賣',ta:'-0.3',rv:'+5%',rk:'穩定',ep:'持平',rs:45,te:'整理',po:'中段',cat:'債券評價壓力緩解中',st:'轉弱'}];
+  FLOW=[
+    {n:'貨櫃航運',fa:86.2,ta:14.6,da:3.2,mg:1.8,to:4.8,ve:42,d5:215},
+    {n:'記憶體',fa:64.5,ta:9.8,da:2.1,mg:2.4,to:3.9,ve:35,d5:182},
+    {n:'光通訊',fa:38.4,ta:6.2,da:1.4,mg:3.1,to:5.2,ve:58,d5:96},
+    {n:'AI 伺服器',fa:22.6,ta:4.1,da:-0.8,mg:0.9,to:2.6,ve:12,d5:88},
+    {n:'PCB / CCL',fa:12.8,ta:3.4,da:0.6,mg:0.7,to:2.2,ve:8,d5:54},
+    {n:'半導體封測',fa:4.2,ta:0.8,da:0.2,mg:0.3,to:1.6,ve:4,d5:18},
+    {n:'被動元件',fa:1.2,ta:0.3,da:0.1,mg:0,to:1.4,ve:2,d5:6},
+    {n:'半導體設備',fa:-2.1,ta:0.4,da:-0.3,mg:0.1,to:1.2,ve:-6,d5:-4},
+    {n:'矽晶圓',fa:-3.6,ta:-0.6,da:-0.2,mg:-0.2,to:1.0,ve:-8,d5:-12},
+    {n:'散熱',fa:-8.4,ta:-2.2,da:-1.2,mg:1.4,to:3.1,ve:-15,d5:12},
+    {n:'原物料',fa:-12.4,ta:-1.6,da:-0.8,mg:-0.3,to:0.7,ve:-12,d5:-48},
+    {n:'面板',fa:-18.6,ta:-2.4,da:-1.1,mg:-0.4,to:1.9,ve:-18,d5:-66},
+    {n:'金融',fa:-41.2,ta:-3.8,da:-2.4,mg:-0.6,to:0.8,ve:-22,d5:-104}];
+  SIG=[
+    {grp:'航運',n:'SCFI 綜合指數',cur:'2,143.6',unit:'點',chg:'+4.2%',imp:1,dir:'改善中 · 連 3 週上行',src:'上海航交所',upd:'08/15 週更',pts:[1820,1795,1810,1842,1836,1858,1890,1924,1980,2010,2058,2143]},
+    {grp:'航運',n:'Drewry WCI 綜合',cur:'3,412',unit:'USD/FEU',chg:'+3.1%',imp:1,dir:'改善中',src:'Drewry',upd:'08/18 週更',pts:[3120,3080,3095,3060,3110,3150,3180,3225,3260,3290,3310,3412]},
+    {grp:'航運',n:'美西線運價',cur:'2,860',unit:'USD/FEU',chg:'+6.8%',imp:1,dir:'改善中 · 動能最強',src:'Drewry',upd:'08/18 週更',pts:[2280,2250,2310,2290,2340,2380,2420,2460,2540,2610,2680,2860]},
+    {grp:'航運',n:'美東線運價',cur:'3,940',unit:'USD/FEU',chg:'+2.9%',imp:1,dir:'改善中',src:'Drewry',upd:'08/18 週更',pts:[3620,3590,3610,3640,3660,3700,3720,3760,3800,3830,3860,3940]},
+    {grp:'航運',n:'空白航班（4 週）',cur:'42',unit:'航次',chg:'+12%',imp:1,dir:'供給收縮 · 利運價',src:'Sea-Intelligence',upd:'08/17 週更',pts:[28,30,29,31,33,32,34,36,37,38,40,42]},
+    {grp:'航運',n:'有效運力 YoY',cur:'+6.2%',unit:'',chg:'+0.4pp',imp:-1,dir:'供給增加 · 中期壓力',src:'Alphaliner',upd:'08/16 月更',pts:[4.8,5.0,5.1,5.3,5.4,5.6,5.7,5.8,5.9,6.0,6.1,6.2]},
+    {grp:'記憶體',n:'DDR5 16Gb 現貨價',cur:'5.84',unit:'USD',chg:'+2.1%',imp:1,dir:'由跌轉升',src:'DRAMeXchange',upd:'08/20 日更',pts:[6.2,6.05,5.9,5.78,5.66,5.58,5.52,5.5,5.55,5.62,5.72,5.84]},
+    {grp:'記憶體',n:'DDR5 合約價（月）',cur:'4.60',unit:'USD',chg:'+1.8%',imp:1,dir:'改善中 · 逐月調漲',src:'TrendForce',upd:'08/01 月更',pts:[4.1,4.1,4.15,4.2,4.2,4.28,4.32,4.38,4.42,4.48,4.52,4.6]},
+    {grp:'記憶體',n:'NAND 512Gb Wafer',cur:'3.12',unit:'USD',chg:'+0.3%',imp:0,dir:'持平',src:'DRAMeXchange',upd:'08/20 日更',pts:[3.18,3.15,3.12,3.1,3.08,3.09,3.1,3.08,3.1,3.11,3.11,3.12]},
+    {grp:'記憶體',n:'模組廠庫存週數',cur:'8.2',unit:'週',chg:'−0.9 週',imp:1,dir:'去化中 · 利報價',src:'供應鏈調查',upd:'08/10 月更',pts:[11.5,11.2,10.8,10.5,10.2,9.8,9.6,9.3,9.0,8.8,8.5,8.2]},
+    {grp:'光通訊',n:'800G 光模組月出貨',cur:'128',unit:'萬顆',chg:'+12%',imp:1,dir:'上修中',src:'供應鏈調查',upd:'08/19 月更',pts:[62,68,72,78,84,88,95,100,106,112,118,128]},
+    {grp:'光通訊',n:'1.6T 送樣客戶數',cur:'14',unit:'家',chg:'+3 家',imp:1,dir:'增加中',src:'供應鏈調查',upd:'08/10 月更',pts:[4,5,5,6,7,8,9,10,11,12,12,14]},
+    {grp:'AI 伺服器',n:'北美 CSP 資本支出 YoY',cur:'+38%',unit:'',chg:'+3pp',imp:1,dir:'上修中',src:'財報彙整',upd:'07/30 季更',pts:[22,24,25,27,28,30,31,32,34,35,36,38]},
+    {grp:'AI 伺服器',n:'GB300 機櫃月出貨',cur:'2,850',unit:'櫃',chg:'+9%',imp:1,dir:'爬坡中',src:'供應鏈調查',upd:'08/15 月更',pts:[400,600,850,1100,1350,1600,1850,2100,2300,2500,2620,2850]},
+    {grp:'AI 伺服器',n:'ODM AI 營收比重',cur:'31%',unit:'',chg:'+2pp',imp:1,dir:'改善中',src:'月營收推估',upd:'08/10 月更',pts:[18,19,20,21,22,24,25,26,27,29,30,31]},
+    {grp:'散熱',n:'AI 伺服器液冷滲透率',cur:'22%',unit:'',chg:'+1.5pp',imp:1,dir:'改善中 · 已充分定價',src:'供應鏈調查',upd:'08/12 月更',pts:[9,10,11,12,13,14,16,17,18,19,21,22]},
+    {grp:'散熱',n:'3D VC 均價 QoQ',cur:'−3.0%',unit:'',chg:'−1.2pp',imp:-1,dir:'競價壓力',src:'供應鏈調查',upd:'08/05 季更',pts:[2,1.5,1,0.5,0,-0.5,-1,-1.5,-2,-2.2,-2.6,-3]},
+    {grp:'散熱',n:'液冷模組出貨增速 MoM',cur:'+6%',unit:'',chg:'−2pp',imp:0,dir:'增速放緩',src:'供應鏈調查',upd:'08/15 月更',pts:[14,15,13,12,12,11,10,9,9,8,7,6]},
+    {grp:'PCB / CCL',n:'高階 CCL 交期',cur:'12',unit:'週',chg:'+2 週',imp:1,dir:'供給趨緊',src:'供應鏈調查',upd:'08/14 週更',pts:[7,7,7.5,8,8,8.5,9,9.5,10,10.5,11,12]},
+    {grp:'PCB / CCL',n:'CCL 均價指數',cur:'118.4',unit:'點',chg:'+4.1%',imp:1,dir:'改善中',src:'產業報價彙整',upd:'08/18 月更',pts:[100,101,102,103,104,105,107,109,111,113,114,118]},
+    {grp:'PCB / CCL',n:'T-Glass 玻纖布交期',cur:'16',unit:'週',chg:'+3 週',imp:1,dir:'缺料延續',src:'供應鏈調查',upd:'08/10 月更',pts:[8,9,9,10,10,11,12,12,13,14,15,16]},
+    {grp:'矽晶圓',n:'12 吋現貨價',cur:'128',unit:'USD/片',chg:'+0.5%',imp:0,dir:'止跌持平',src:'產業報價彙整',upd:'08/15 月更',pts:[142,139,136,134,132,130,129,128,127,127,127.5,128]},
+    {grp:'矽晶圓',n:'產能利用率',cur:'78%',unit:'',chg:'+1pp',imp:1,dir:'低檔回升',src:'法說彙整',upd:'07/31 季更',pts:[88,86,84,82,80,78,76,75,75,76,77,78]},
+    {grp:'矽晶圓',n:'長約履約率',cur:'82%',unit:'',chg:'−2pp',imp:-1,dir:'遞延壓力',src:'法說彙整',upd:'07/31 季更',pts:[95,94,93,92,90,89,88,86,85,84,83,82]},
+    {grp:'封測',n:'CoWoS 月產能',cur:'38K',unit:'片',chg:'+12%',imp:1,dir:'擴產中',src:'供應鏈調查',upd:'08/16 月更',pts:[15,17,18,20,22,24,26,28,30,32,34,38]},
+    {grp:'封測',n:'先進封裝報價 QoQ',cur:'+2.3%',unit:'',chg:'+0.8pp',imp:1,dir:'改善中',src:'產業報價彙整',upd:'08/01 季更',pts:[-1,-0.5,0,0.3,0.5,0.8,1,1.2,1.5,1.8,2,2.3]},
+    {grp:'封測',n:'傳統封測稼動率',cur:'74%',unit:'',chg:'+1pp',imp:0,dir:'緩步回升',src:'法說彙整',upd:'07/31 季更',pts:[70,69,68,68,69,70,71,71,72,72,73,74]},
+    {grp:'被動元件',n:'MLCC BB Ratio',cur:'0.98',unit:'',chg:'+0.03',imp:1,dir:'接近轉正',src:'產業調查',upd:'08/10 月更',pts:[0.85,0.86,0.87,0.88,0.89,0.9,0.91,0.92,0.93,0.95,0.96,0.98]},
+    {grp:'被動元件',n:'車用 MLCC 訂單 MoM',cur:'+4%',unit:'',chg:'+1pp',imp:1,dir:'回補中',src:'供應鏈調查',upd:'08/12 月更',pts:[-2,-1,0,0,1,1,2,2,3,3,3.5,4]},
+    {grp:'被動元件',n:'標準品報價 QoQ',cur:'−0.8%',unit:'',chg:'+0.4pp',imp:-1,dir:'仍在跌價 · 跌幅收斂',src:'產業報價彙整',upd:'08/01 季更',pts:[-3,-2.8,-2.6,-2.4,-2.2,-2,-1.8,-1.6,-1.4,-1.2,-1,-0.8]},
+    {grp:'半導體設備',n:'台積電資本支出指引',cur:'420',unit:'億美元',chg:'+5%',imp:1,dir:'上修',src:'法說彙整',upd:'07/17 季更',pts:[300,310,320,330,340,350,360,370,385,395,405,420]},
+    {grp:'半導體設備',n:'北美半導體設備出貨',cur:'41.2',unit:'億美元/月',chg:'+2.8%',imp:1,dir:'改善中',src:'SEMI',upd:'08/15 月更',pts:[33,33.5,34,34.8,35.2,36,36.8,37.5,38.2,39,40.1,41.2]},
+    {grp:'半導體設備',n:'新機台平均交期',cur:'9',unit:'月',chg:'−1 月',imp:-1,dir:'交期縮短 · 需求降溫訊號',src:'供應鏈調查',upd:'08/08 月更',pts:[14,13.5,13,12.5,12,11.5,11,10.5,10,9.8,9.4,9]},
+    {grp:'面板',n:'TV 面板報價（55 吋）',cur:'118',unit:'USD',chg:'−2.5%',imp:-1,dir:'連 4 月走跌',src:'產業報價彙整',upd:'08/18 月更',pts:[138,136,135,133,131,129,127,125,123,121,120,118]},
+    {grp:'面板',n:'面板廠稼動率',cur:'70%',unit:'',chg:'−3pp',imp:-1,dir:'下修中',src:'供應鏈調查',upd:'08/12 月更',pts:[82,83,82,81,80,79,78,76,75,73,71,70]},
+    {grp:'面板',n:'品牌端庫存週數',cur:'9.5',unit:'週',chg:'+0.5 週',imp:-1,dir:'去化緩慢',src:'供應鏈調查',upd:'08/10 月更',pts:[7.5,7.8,8,8.2,8.4,8.5,8.7,8.9,9,9.2,9.4,9.5]},
+    {grp:'原物料',n:'中國螺紋鋼價',cur:'3,180',unit:'CNY/噸',chg:'−1.8%',imp:-1,dir:'需求疲弱',src:'上海期交所',upd:'08/20 週更',pts:[3620,3580,3540,3500,3460,3420,3390,3350,3300,3260,3220,3180]},
+    {grp:'原物料',n:'乙烯－石腦油價差',cur:'182',unit:'USD/噸',chg:'−4.2%',imp:-1,dir:'收斂中',src:'產業報價彙整',upd:'08/15 週更',pts:[265,258,250,242,235,228,220,212,205,198,190,182]},
+    {grp:'原物料',n:'水泥出貨量 YoY',cur:'−6%',unit:'',chg:'+1pp',imp:0,dir:'跌幅收斂',src:'產業調查',upd:'08/10 月更',pts:[-12,-11.5,-11,-10.5,-10,-9.5,-9,-8.5,-8,-7.5,-6.8,-6]},
+    {grp:'金融',n:'美 10 年期公債殖利率',cur:'3.62%',unit:'',chg:'−8bp',imp:1,dir:'回落 · 債券評價壓力緩解',src:'市場資料',upd:'08/20 日更',pts:[4.3,4.25,4.2,4.1,4.05,3.95,3.9,3.85,3.8,3.72,3.68,3.62]},
+    {grp:'金融',n:'銀行淨利差 NIM',cur:'1.32%',unit:'',chg:'−2bp',imp:-1,dir:'利差收斂',src:'金管會統計',upd:'07/31 季更',pts:[1.45,1.44,1.43,1.42,1.41,1.4,1.39,1.38,1.36,1.35,1.33,1.32]},
+    {grp:'金融',n:'壽險新契約保費 YoY',cur:'+3%',unit:'',chg:'+2pp',imp:0,dir:'低基期回穩',src:'壽險公會',upd:'08/10 月更',pts:[-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3]}];
+  DET={
+    '貨櫃航運':{ms:'市場主流',cyc:'上升中段',rl:'中',th:'美線長約與現貨價差擴大，旺季補庫存疊加空白航班收縮，運價動能自現貨端向財報端傳導；市場正重新定價 Q3–Q4 獲利。'},
+    '記憶體':{ms:'市場主流',cyc:'上升初段',rl:'中',th:'HBM 產能排擠一般型 DRAM 供給，合約價逐季調漲；現貨價先行翻揚、庫存去化完成，漲價循環進入獲利上修階段。'},
+    '光通訊':{ms:'次主流 → 主流',cyc:'上升初段',rl:'中高',th:'800G 出貨上修、1.6T 送樣放量，北美 CSP 資本支出向網路端傾斜；台鏈自組裝向上游元件滲透，評價仍在擴張期。'},
+    'AI 伺服器':{ms:'市場主流',cyc:'高原前段',rl:'中',th:'GB300 出貨放量、ASIC 專案並行；成長動能明確但已被充分定價，超額報酬轉向零組件與新切入者。'},
+    '散熱':{ms:'主流尾段',cyc:'高原期',rl:'高',th:'液冷滲透率持續提升，但股價乖離過大、量能未同步放大；基本面向上與籌碼過熱並存，波動加劇。'},
+    '金融':{ms:'非主流',cyc:'下行段',rl:'低',th:'升息循環尾聲、利差收斂，債券評價壓力未除；資金持續流出至電子主流族群。'},
+    'PCB / CCL':{ms:'次主流',cyc:'上升中段',rl:'中',th:'AI 加速卡與交換器帶動 M8 級以上板材升級，高階 CCL 與玻纖布交期同步拉長；漲價自上游材料向板廠傳導，留意漲價動能鈍化的時點。'},
+    '矽晶圓':{ms:'非主流',cyc:'底部盤整',rl:'中',th:'產能利用率自低檔回升、現貨價止跌，屬落後補漲題材；但長約履約率仍下滑，趨勢確認需等報價實質翻正。'},
+    '半導體封測':{ms:'次主流',cyc:'上升初段',rl:'中',th:'CoWoS 擴產排程明確、先進封裝報價回升，AI 測試需求外溢；營收能見度高，股價彈性介於設備與 IC 設計之間。'},
+    '被動元件':{ms:'非主流',cyc:'底部盤整',rl:'低',th:'BB Ratio 逼近 1、車用訂單先行回補；標準品報價跌幅收斂但尚未翻正，屬左側佈局階段，等待量價確認。'},
+    '半導體設備':{ms:'非主流',cyc:'高原後段',rl:'中',th:'先進製程與 CoWoS 資本支出維持高檔，但市場已反應大半；訂單能見度高、認列時點波動大，個股表現分化，選股看新機台與新製程的切入進度。'},
+    '面板':{ms:'非主流',cyc:'下行段',rl:'中高',th:'TV 面板報價連 4 月走跌、稼動率下修至七成，品牌拉貨保守；需等「報價止跌＋稼動回升」雙重確認，目前僅具跌深反彈條件。'},
+    '原物料':{ms:'非主流',cyc:'下行段',rl:'中',th:'中國地產與基建需求疲弱，壓抑鋼價與塑化價差，煉油價差同步收斂；股價低基期、有殖利率保護，但缺乏需求端催化。'}};
+  constructor(p){super(p);let w=[];try{w=JSON.parse(localStorage.getItem('tsir-watch')||'[]')}catch(e){}
+    this.state={screen:null,rf:'全部',rsort:'heat',sf:'全部',sg:'全部',detail:'貨櫃航運',sortKey:'chg',sortDir:-1,watchOnly:false,watch:new Set(w)};}
+  nav(id){this.setState({screen:id})}
+  tw(k,e){if(e)e.stopPropagation();const w=new Set(this.state.watch);if(w.has(k))w.delete(k);else w.add(k);try{localStorage.setItem('tsir-watch',JSON.stringify([...w]))}catch(e2){}this.setState({watch:w})}
+  badge(st){const B={'加速中':['rgba(255,86,60,.2)','transparent','#ffc4b8'],'轉強':['rgba(255,86,60,.11)','transparent','#ff9783'],'早期轉強':['transparent','rgba(255,86,60,.55)','#ff9783'],'盤整':['transparent','rgba(243,242,242,.3)','rgba(243,242,242,.65)'],'中性':['transparent','rgba(243,242,242,.3)','rgba(243,242,242,.65)'],'過熱':['rgba(230,178,58,.16)','transparent','#e6c26a'],'轉弱':['rgba(61,174,124,.14)','transparent','#6cc79d'],'趨勢確認':['rgba(255,86,60,.11)','transparent','#ff9783'],'潛在補漲':['transparent','rgba(255,86,60,.55)','#ff9783'],'高檔整理':['transparent','rgba(230,178,58,.5)','#e6c26a']}[st]||['transparent','rgba(243,242,242,.3)','rgba(243,242,242,.65)'];return{bBg:B[0],bBd:B[1],bC:B[2],bT:st}}
+  wc(w){if(['強勁流入','中等流入','改善中','改善','強','轉強','加速','上修','多頭','突破'].includes(w))return this.UPS;if(['流出','惡化','疲弱','弱','轉弱','減速','下修','空頭','低檔'].includes(w))return this.DNS;return this.MU}
+  tCol(t){return t==='→'?'rgba(243,242,242,.6)':('↑↗'.includes(t)?this.UP:this.DN)}
+  dTxt(d){return d>0?'▲'+d:(d<0?'▼'+(-d):'—')}
+  dCol(d){return d>0?this.UP:(d<0?this.DN:'rgba(243,242,242,.35)')}
+  barC(x){if(x.st==='過熱')return this.AM;if(x.st==='轉弱')return this.DN;if(x.h>=80)return '#ff563c';if(x.h>=70)return 'rgba(255,86,60,.7)';if(x.h>=60)return 'rgba(255,86,60,.42)';return 'rgba(243,242,242,.3)'}
+  chip(act){return act?'background:#ff563c;border:1px solid #ff563c;color:#171514;font-weight:700':'border:1px solid rgba(243,242,242,.3);color:rgba(243,242,242,.7)'}
+  pm(v){const a=Math.abs(v),s=a%1?a.toFixed(1):''+a;return v>0?'+'+s:(v<0?'−'+s:'0')}
+  tint(v,sc){if(!v)return{bg:'transparent',c:'rgba(243,242,242,.55)'};const a=Math.min(Math.abs(v)/sc,1);return v>0?{bg:'rgba(255,86,60,'+(.05+a*.3).toFixed(3)+')',c:a>.5?'#ffc4b8':'#ff9783'}:{bg:'rgba(61,174,124,'+(.05+a*.3).toFixed(3)+')',c:'#6cc79d'}}
+  line(pts){const w=280,h=64,mn=Math.min(...pts),mx=Math.max(...pts),rg=(mx-mn)||1,st=(w-8)/(pts.length-1);let s='';pts.forEach((v,i)=>{s+=(4+i*st).toFixed(1)+','+(h-6-((v-mn)/rg)*(h-12)).toFixed(1)+' '});return{s:s.trim(),px:(4+(pts.length-1)*st).toFixed(1),py:(h-6-((pts[pts.length-1]-mn)/rg)*(h-12)).toFixed(1)}}
+  sigCard(x){const L=this.line(x.pts),ic=x.imp>0?this.UP:(x.imp<0?this.DN:'rgba(243,242,242,.55)'),D=x.imp>0?['rgba(255,86,60,.14)','transparent','#ff9783']:(x.imp<0?['rgba(61,174,124,.14)','transparent','#6cc79d']:['transparent','rgba(243,242,242,.3)','rgba(243,242,242,.65)']);return{n:x.n,grp:x.grp,cur:x.cur,unit:x.unit,chg:x.chg,chgC:ic,dir:x.dir,dBg:D[0],dBd:D[1],dC:D[2],src:x.src,upd:x.upd,ln:L.s,px:L.px,py:L.py,lc:ic}}
+  flowRow(f){const A=this.tint(f.fa,90),B=this.tint(f.ta,15),C=this.tint(f.da,3.5),M=this.tint(f.mg,3),V=this.tint(f.ve,60),half=Math.min(Math.abs(f.d5)/230*100,100).toFixed(1);return{n:f.n,go:()=>this.setState({screen:'detail',detail:f.n}),faT:this.pm(f.fa),faBg:A.bg,faC:A.c,taT:this.pm(f.ta),taBg:B.bg,taC:B.c,daT:this.pm(f.da),daBg:C.bg,daC:C.c,mgT:this.pm(f.mg)+'%',mgBg:M.bg,mgC:M.c,toT:f.to.toFixed(1)+'%',veT:this.pm(f.ve)+'%',veBg:V.bg,veC:V.c,d5T:this.pm(f.d5),d5C:f.d5>0?this.UP:(f.d5<0?this.DN:this.MU),d5L:(f.d5<0?half:0)+'%',d5R:(f.d5>0?half:0)+'%'}}
+  indRow(x,i){const S=this.state,k='i:'+x.n;return Object.assign({},x,this.badge(x.st),{rank:i+1,bw:x.h+'%',bc:this.barC(x),tc:this.tCol(x.t),dT:this.dTxt(x.d),dC:this.dCol(x.d),fc:this.wc(x.flow),lc:this.wc(x.lead),fdc:this.wc(x.fund),tec:this.wc(x.tech),hl:x.d>=4?'rgba(255,86,60,.06)':'transparent',sg:S.watch.has(k)?'★':'☆',sc2:S.watch.has(k)?'#ff563c':'rgba(243,242,242,.35)',star:(e)=>this.tw(k,e),open:()=>this.setState({screen:'detail',detail:x.n})})}
+  stkRow(s){const S=this.state,c=s.c;return Object.assign({},s,this.badge(s.st),{cc:c>0?this.UP:(c<0?this.DN:this.MU),cTxt:(c>0?'+':'')+c.toFixed(1)+'%',faC:s.fa.startsWith('+')?this.UPS:this.DNS,rkC:this.wc(s.rk),epC:this.wc(s.ep),rsC:s.rs>=85?this.UP:(s.rs<=45?this.DNS:'#f3f2f2'),rsW:s.rs>=85?700:600,teC:this.wc(s.te),poC:this.wc(s.po),sg:S.watch.has(s.tk)?'★':'☆',sc2:S.watch.has(s.tk)?'#ff563c':'rgba(243,242,242,.35)',star:(e)=>this.tw(s.tk,e)})}
+  renderVals(){
+    const S=this.state,P=this.props;
+    const scr=S.screen??({'產業雷達':'radar','個股雷達':'stocks'}[P.defaultScreen]||'overview');
+    const pad=(P.density==='緊湊')?'5px':'8px';
+    const navScr=scr==='detail'?'radar':scr;
+    const nav=[['overview','總覽'],['radar','產業雷達'],['flow','資金流向'],['stocks','個股雷達'],['indicators','領先指標'],['brief','每日簡報'],['watch','追蹤清單']].map((a,i)=>{const act=navScr===a[0];return{l:a[1],num:'0'+(i+1),go:()=>this.nav(a[0]),ws:act?{display:'flex',alignItems:'center',padding:'9px 16px',background:'#ff563c',color:'#171514',cursor:'pointer'}:{display:'flex',alignItems:'center',padding:'9px 16px',color:'rgba(243,242,242,.72)',cursor:'pointer'},hov:act?'background:#ff563c':'background:rgba(243,242,242,.06)',lf:act?"700 13px 'Noto Sans TC',sans-serif":"500 13px 'Noto Sans TC',sans-serif"}});
+    const ranked=[...this.IND].sort((a,b)=>b.h-a.h);
+    const ovRows=ranked.slice(0,8).map((x,i)=>this.indRow(x,i));
+    const rChips=['全部','加速中','轉強','早期轉強','盤整','過熱','轉弱'].map(l=>({l,go:()=>this.setState({rf:l}),cs:this.chip(S.rf===l)}));
+    const rSorts=[['heat','依熱度'],['delta','依排名變化']].map(a=>({l:a[1],go:()=>this.setState({rsort:a[0]}),cs:this.chip(S.rsort===a[0])}));
+    let cards=ranked.map((x,i)=>this.indRow(x,i)).filter(x=>S.rf==='全部'||(S.rf==='盤整'?(x.st==='盤整'||x.st==='中性'):x.st===S.rf));
+    if(S.rsort==='delta')cards=[...cards].sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+    const inds=['全部','貨櫃航運','記憶體','光通訊','AI 伺服器','PCB / CCL','散熱','半導體封測','矽晶圓','被動元件','半導體設備','金融','面板','原物料'];
+    const sChips=inds.map(l=>({l,go:()=>this.setState({sf:l}),cs:this.chip(S.sf===l)}));
+    let sRows=this.STK.filter(s=>(S.sf==='全部'||s.ind===S.sf)&&(!S.watchOnly||S.watch.has(s.tk)));
+    sRows=[...sRows].sort((a,b)=>(S.sortKey==='chg'?(a.c-b.c):(a.rs-b.rs))*S.sortDir);
+    sRows=sRows.map(s=>this.stkRow(s));
+    const g=(k)=>S.sortKey===k?(S.sortDir<0?'▼':'▲'):'';
+    const wInd=this.IND.filter(x=>S.watch.has('i:'+x.n)).map((x,i)=>this.indRow(x,i));
+    const wStk=this.STK.filter(s=>S.watch.has(s.tk)).map(s=>this.stkRow(s));
+    const dName=S.detail||'貨櫃航運';
+    const dIdx=ranked.findIndex(x=>x.n===dName);
+    const d=this.indRow(ranked[dIdx],dIdx);
+    const dd=this.DET[dName]||{ms:'非主流',cyc:'—',rl:'中',th:'以熱度、資金流與領先指標綜合判讀此產業之變化（完整論點建置中）。'};
+    const grpMap={'貨櫃航運':'航運','半導體封測':'封測'};
+    const dSig=this.SIG.filter(g=>g.grp===(grpMap[dName]||dName)).map(x=>this.sigCard(x));
+    const dStk=this.STK.filter(s=>s.ind===dName).map(s=>this.stkRow(s));
+    const gChips=['全部','航運','記憶體','光通訊','AI 伺服器','散熱','PCB / CCL','矽晶圓','封測','被動元件','半導體設備','面板','原物料','金融'].map(l=>({l,go:()=>this.setState({sg:l}),cs:this.chip(S.sg===l)}));
+    const sigCards=this.SIG.filter(g=>S.sg==='全部'||g.grp===S.sg).map(x=>this.sigCard(x));
+    const flowRows=this.FLOW.map(f=>this.flowRow(f));
+    return{nav,pad,poster:!!P.rotationPoster,
+      isOverview:scr==='overview',isRadar:scr==='radar',isStocks:scr==='stocks',isWatch:scr==='watch',isFlow:scr==='flow',isSig:scr==='indicators',isBrief:scr==='brief',isDetail:scr==='detail',
+      ovRows,rChips,rSorts,cards,sChips,sRows,stkCount:sRows.length,
+      sortChg:()=>this.setState(s=>({sortKey:'chg',sortDir:s.sortKey==='chg'?-s.sortDir:-1})),
+      sortRs:()=>this.setState(s=>({sortKey:'rs',sortDir:s.sortKey==='rs'?-s.sortDir:-1})),
+      chgG:g('chg'),rsG:g('rs'),
+      toggleWatchOnly:()=>this.setState(s=>({watchOnly:!s.watchOnly})),woCs:this.chip(S.watchOnly),
+      wInd,wStk,wiEmpty:wInd.length===0,wsEmpty:wStk.length===0,
+      gChips,sigCards,flowRows,
+      d,dMs:dd.ms,dCyc:dd.cyc,dRl:dd.rl,dRlC:(dd.rl==='高'?'#e6b23a':(dd.rl==='中高'?'#e6c26a':(dd.rl==='低'?'#6cc79d':'rgba(243,242,242,.8)'))),dTh:dd.th,
+      dSig,dSigEmpty:dSig.length===0,dStk,dStkEmpty:dStk.length===0,backToRadar:()=>this.nav('radar')};
+  }
+}
+</script>
+</body>
+</html>
