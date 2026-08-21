@@ -1,0 +1,445 @@
+// Taiwan Stock Industry Radar — Prisma schema
+// NOTE: Provider is sqlite for local MVP development (no external DB required).
+// The schema intentionally avoids sqlite-only features so switching
+// `provider = "postgresql"` + DATABASE_URL later is a low-friction move.
+// See README.md "Switching to PostgreSQL" for the migration steps.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Reference / provenance
+// ---------------------------------------------------------------------------
+
+/// A data provider/source, real or mock. Every fact in the system should be
+/// traceable back to one of these so the UI can label mock vs. real data.
+model DataSource {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "mock-freight", "twse", "taifex"
+  name        String
+  category    String // "market_data" | "institutional_flow" | "indicator" | "news" | "fundamental"
+  url         String?
+  isMock      Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  indicatorValues IndicatorValue[]
+  marketData      MarketData[]
+  flows           InstitutionalFlow[]
+  catalysts       Catalyst[]
+
+  @@map("data_sources")
+}
+
+// ---------------------------------------------------------------------------
+// Core taxonomy
+// ---------------------------------------------------------------------------
+
+model Industry {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  nameZh      String?
+  description String?
+
+  /// Current investment thesis, one short paragraph.
+  thesis String?
+
+  /// Single headline risk sentence for compact display (radar cards, KPI
+  /// strips). The fuller multi-item risk list stays authored copy in
+  /// prisma/seed-data.ts (SeedIndustry.risks) — this column captures just
+  /// the top item so it can render without an extra join.
+  primaryRisk String?
+
+  /// "early" | "expansion" | "peak" | "contraction" | "trough"
+  cyclePosition String @default("expansion")
+
+  /// "low" | "medium" | "high"
+  riskLevel String @default("medium")
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stocks     Stock[]
+  indicators Indicator[]
+  catalysts  Catalyst[]
+  scores     IndustryScore[]
+  alerts     Alert[]
+  flows      InstitutionalFlow[]
+  watchlist  WatchlistItem[]
+
+  @@map("industries")
+}
+
+model Stock {
+  id         String  @id @default(cuid())
+  ticker     String  @unique
+  name       String
+  nameZh     String?
+  exchange   String  @default("TWSE") // TWSE | TPEx
+  industryId String
+
+  /// "early_strengthening" | "trend_confirmed" | "high_level_consolidation"
+  /// | "potential_catch_up" | "overheated" | "weakening"
+  status String @default("early_strengthening")
+
+  mainCatalyst String?
+  mainRisk     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  industry     Industry            @relation(fields: [industryId], references: [id])
+  marketData   MarketData[]
+  catalysts    Catalyst[]
+  flows        InstitutionalFlow[]
+  fundamentals StockFundamental[]
+  alertLinks   AlertStock[]
+  watchlist    WatchlistItem[]
+
+  @@index([industryId])
+  @@map("stocks")
+}
+
+// ---------------------------------------------------------------------------
+// Leading indicators (industry-specific, e.g. SCFI, DRAM price, CapEx)
+// ---------------------------------------------------------------------------
+
+model Indicator {
+  id             String  @id @default(cuid())
+  industryId     String
+  key            String // e.g. "scfi", "dram_contract_price"
+  name           String
+  nameZh         String?
+  unit           String? // "USD/TEU", "index", "USD", "%"
+  description    String?
+  frequency      String  @default("weekly") // daily | weekly | monthly | quarterly
+  /// true when a rising value is bullish for the industry, false when a rising
+  /// value is bearish (e.g. rising inventory is usually bearish).
+  higherIsBetter Boolean @default(true)
+  sortOrder      Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  industry  Industry         @relation(fields: [industryId], references: [id])
+  values    IndicatorValue[]
+  watchlist WatchlistItem[]
+
+  @@unique([industryId, key])
+  @@map("indicators")
+}
+
+model IndicatorValue {
+  id            String   @id @default(cuid())
+  indicatorId   String
+  date          DateTime
+  value         Float
+  previousValue Float?
+  pctChange     Float?
+  dataSourceId  String?
+  sourceUrl     String?
+  dataTimestamp DateTime @default(now())
+  isMock        Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  indicator  Indicator   @relation(fields: [indicatorId], references: [id])
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id])
+
+  @@unique([indicatorId, date])
+  @@index([indicatorId, date])
+  @@map("indicator_values")
+}
+
+// ---------------------------------------------------------------------------
+// Scoring
+// ---------------------------------------------------------------------------
+
+/// Singleton-ish configurable weighting used to compute IndustryScore.total.
+/// Kept as a table (not hard-coded) so weights can be tuned via admin/API.
+model ScoreWeightConfig {
+  id                     String   @id @default(cuid())
+  name                   String   @unique @default("default")
+  fundamentalWeight      Float    @default(0.30)
+  leadingIndicatorWeight Float    @default(0.25)
+  capitalFlowWeight      Float    @default(0.20)
+  technicalWeight        Float    @default(0.15)
+  catalystWeight         Float    @default(0.10)
+  isActive               Boolean  @default(true)
+  updatedAt              DateTime @updatedAt
+  createdAt              DateTime @default(now())
+
+  @@map("score_weight_configs")
+}
+
+model IndustryScore {
+  id         String   @id @default(cuid())
+  industryId String
+  date       DateTime
+
+  fundamentalScore      Float
+  leadingIndicatorScore Float
+  capitalFlowScore      Float
+  technicalScore        Float
+  catalystScore         Float
+
+  totalScore Float
+
+  /// snapshot of the weights used, so historical scores stay reproducible
+  /// even if weights change later. Stored as JSON string.
+  weightsSnapshot String
+
+  /// "accelerating" | "strengthening" | "neutral" | "weakening" | "overheated"
+  status String @default("neutral")
+
+  createdAt DateTime @default(now())
+
+  industry Industry @relation(fields: [industryId], references: [id])
+
+  @@unique([industryId, date])
+  @@index([industryId, date])
+  @@map("industry_scores")
+}
+
+// ---------------------------------------------------------------------------
+// Market data & fundamentals
+// ---------------------------------------------------------------------------
+
+model MarketData {
+  id                String   @id @default(cuid())
+  stockId           String
+  date              DateTime
+  open              Float
+  high              Float
+  low               Float
+  close             Float
+  volume            Float
+  change            Float
+  changePct         Float
+  relativeStrength  Float? // vs. TAIEX, 100 = inline with market
+  technicalTrend    String   @default("neutral") // "uptrend" | "downtrend" | "neutral" | "breakout" | "breakdown"
+  valuationPosition String   @default("mid_range") // "low" | "mid_range" | "high" | "extended"
+  dataSourceId      String?
+  isMock            Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  stock      Stock       @relation(fields: [stockId], references: [id])
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id])
+
+  @@unique([stockId, date])
+  @@index([stockId, date])
+  @@map("market_data")
+}
+
+/// Revenue / EPS style fundamentals, monthly or quarterly.
+model StockFundamental {
+  id           String   @id @default(cuid())
+  stockId      String
+  period       String // "2026-07" (monthly revenue) or "2026Q2" (quarterly EPS)
+  periodType   String // "monthly_revenue" | "quarterly_eps"
+  value        Float
+  yoyChangePct Float?
+  momChangePct Float?
+  eps          Float?
+  isMock       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@unique([stockId, period, periodType])
+  @@index([stockId])
+  @@map("stock_fundamentals")
+}
+
+// ---------------------------------------------------------------------------
+// Institutional / capital flow
+// ---------------------------------------------------------------------------
+
+model InstitutionalFlow {
+  id         String   @id @default(cuid())
+  date       DateTime
+  scope      String // "market" | "industry" | "stock"
+  industryId String?
+  stockId    String?
+
+  foreignNet      Float @default(0) // NT$ thousands
+  trustNet        Float @default(0)
+  dealerNet       Float @default(0)
+  marginChange    Float @default(0) // change in margin financing balance
+  turnover        Float @default(0) // NT$ thousands traded
+  volumeChangePct Float @default(0)
+  breakoutCount   Int   @default(0) // # of stocks breaking out (industry scope)
+
+  dataSourceId String?
+  isMock       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  industry   Industry?   @relation(fields: [industryId], references: [id])
+  stock      Stock?      @relation(fields: [stockId], references: [id])
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id])
+
+  @@index([scope, date])
+  @@index([industryId, date])
+  @@index([stockId, date])
+  @@map("institutional_flows")
+}
+
+// ---------------------------------------------------------------------------
+// Catalysts / news
+// ---------------------------------------------------------------------------
+
+model Catalyst {
+  id           String   @id @default(cuid())
+  industryId   String?
+  stockId      String?
+  title        String
+  description  String?
+  date         DateTime
+  /// "high" | "medium" | "low"
+  importance   String   @default("medium")
+  source       String?
+  sourceUrl    String?
+  dataSourceId String?
+  isMock       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  industry   Industry?   @relation(fields: [industryId], references: [id])
+  stock      Stock?      @relation(fields: [stockId], references: [id])
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id])
+
+  @@index([industryId, date])
+  @@index([stockId, date])
+  @@map("catalysts")
+}
+
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+model Alert {
+  id              String   @id @default(cuid())
+  timestamp       DateTime @default(now())
+  industryId      String?
+  ruleKey         String // e.g. "scfi_2wk_rise", "foreign_buy_streak"
+  title           String
+  description     String
+  /// "high" | "medium" | "low"
+  importance      String
+  sourceIndicator String?
+  change          String?
+  explanation     String
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  industry Industry?    @relation(fields: [industryId], references: [id])
+  stocks   AlertStock[]
+
+  @@index([timestamp])
+  @@index([industryId])
+  @@map("alerts")
+}
+
+/// Join table: which stocks an alert is related to.
+model AlertStock {
+  id      String @id @default(cuid())
+  alertId String
+  stockId String
+
+  alert Alert @relation(fields: [alertId], references: [id])
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@unique([alertId, stockId])
+  @@map("alert_stocks")
+}
+
+// ---------------------------------------------------------------------------
+// Daily AI brief
+// ---------------------------------------------------------------------------
+
+model DailyBrief {
+  id   String   @id @default(cuid())
+  date DateTime @unique
+
+  marketSummary           String
+  strongestIndustries     String // JSON array
+  weakestIndustries       String // JSON array
+  capitalRotation         String
+  leadingIndicatorChanges String // JSON array
+  institutionalActivity   String
+  emergingThemes          String // JSON array
+  stocksToWatch           String // JSON array
+  overheatedThemes        String // JSON array
+  keyRisks                String // JSON array
+  tomorrowWatchlist       String // JSON array
+
+  knownFacts          String // JSON array
+  reasonableInference String // JSON array
+  uncertainty         String // JSON array
+
+  /// "mock" | "openai" | "claude"
+  generatedBy String   @default("mock")
+  createdAt   DateTime @default(now())
+
+  @@map("daily_briefs")
+}
+
+// ---------------------------------------------------------------------------
+// Watchlist
+// ---------------------------------------------------------------------------
+
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  /// "industry" | "stock" | "indicator"
+  itemType    String
+  industryId  String?
+  stockId     String?
+  indicatorId String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  industry  Industry?  @relation(fields: [industryId], references: [id])
+  stock     Stock?     @relation(fields: [stockId], references: [id])
+  indicator Indicator? @relation(fields: [indicatorId], references: [id])
+
+  // A compound unique across nullable columns does not dedupe on SQLite
+  // (NULLs compare as distinct), so uniqueness is enforced in the mutation
+  // layer instead — see src/app/watchlist/actions.ts.
+  @@index([itemType])
+  @@map("watchlist_items")
+}
+
+// ---------------------------------------------------------------------------
+// Market-wide snapshot (TAIEX etc.)
+// ---------------------------------------------------------------------------
+
+model MarketStatus {
+  id               String   @id @default(cuid())
+  date             DateTime @unique
+  index            String   @default("TAIEX")
+  close            Float
+  change           Float
+  changePct        Float
+  volume           Float
+  breadthAdvancers Int      @default(0)
+  breadthDecliners Int      @default(0)
+  foreignNet       Float    @default(0)
+  trustNet         Float    @default(0)
+  dealerNet        Float    @default(0)
+  marginChange     Float    @default(0)
+  isMock           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@map("market_status")
+}
