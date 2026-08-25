@@ -25,3 +25,6 @@ export async function POST(request: Request) {
     brief: { date: brief.date, generatedBy: brief.generatedBy },
   });
 }
+
+// Vercel Cron only sends GET; alias it to the same handler.
+export const GET = POST;

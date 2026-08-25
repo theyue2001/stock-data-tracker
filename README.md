@@ -250,6 +250,8 @@ npm run cron           # long-running scheduler, 20:00 Asia/Taipei, Mon–Fri
 
 On serverless platforms use the platform scheduler against `POST /api/jobs/daily` instead of `npm run cron`. Set `CRON_SECRET` and send it as `Authorization: Bearer <secret>`. With no secret configured the job routes are allowed only outside production, so a deployed instance can never be triggered anonymously.
 
+On Vercel, `vercel.json` already schedules this (12:00 UTC = 20:00 Asia/Taipei, Mon–Fri). Vercel Cron only sends `GET`, so `/api/jobs/daily` also exports a `GET` alias for it. Set a `CRON_SECRET` env var in the project — Vercel automatically sends it as `Authorization: Bearer <value>` on cron invocations, so no extra wiring is needed.
+
 ---
 
 ## API
