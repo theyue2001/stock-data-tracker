@@ -1,10 +1,10 @@
 import { getIndustryRadar } from "@/lib/queries";
 import { getActiveScoreWeights } from "@/lib/score-weights";
 import { ok } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
+import { connection } from "next/server";
 
 export async function GET() {
+  await connection();
   const [industries, weights] = await Promise.all([getIndustryRadar(), getActiveScoreWeights()]);
   return ok(industries, { weights, count: industries.length });
 }

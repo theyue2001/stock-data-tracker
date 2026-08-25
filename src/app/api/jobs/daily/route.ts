@@ -2,8 +2,10 @@ import { runRefreshJob } from "@/lib/jobs/refresh-data";
 import { runAlertEngine } from "@/lib/jobs/generate-alerts";
 import { runDailyBriefJob } from "@/lib/jobs/generate-daily-brief";
 import { authorizeJob, ok } from "@/lib/api";
+import { connection } from "next/server";
+import { revalidateTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
-export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
@@ -12,12 +14,17 @@ export const maxDuration = 300;
  * `npm run cron` for a long-lived local scheduler.
  */
 export async function POST(request: Request) {
+  await connection();
   const auth = authorizeJob(request);
   if (!auth.ok) return auth.response;
 
   const refresh = await runRefreshJob();
   const alertsCreated = await runAlertEngine();
   const brief = await runDailyBriefJob();
+
+  // Expire the cached read layer once, after the whole pipeline has written,
+  // so no screen can show a half-updated session.
+  revalidateTag(CACHE_TAGS.radarData, "max");
 
   return ok({
     refresh,

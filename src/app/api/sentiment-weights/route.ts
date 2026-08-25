@@ -2,10 +2,10 @@ import { db } from "@/lib/db";
 import { getActiveSentimentWeights } from "@/lib/sentiment-weights";
 import { DEFAULT_SENTIMENT_WEIGHTS, SENTIMENT_WEIGHT_FIELDS } from "@/lib/sentiment";
 import { fail, ok } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
+import { connection } from "next/server";
 
 export async function GET() {
+  await connection();
   const weights = await getActiveSentimentWeights();
   const sum = SENTIMENT_WEIGHT_FIELDS.reduce((s, f) => s + weights[f], 0);
   return ok(weights, { defaults: DEFAULT_SENTIMENT_WEIGHTS, sum: Math.round(sum * 1000) / 1000 });

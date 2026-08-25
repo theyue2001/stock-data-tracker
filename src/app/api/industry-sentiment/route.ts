@@ -1,8 +1,7 @@
 import { getIndustryMomentum } from "@/lib/sentiment-queries";
 import { getActiveSentimentWeights } from "@/lib/sentiment-weights";
 import { ok } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
+import { connection } from "next/server";
 
 /**
  * Today's Industry Sentiment readings — the same rows the Overview module's
@@ -10,6 +9,7 @@ export const dynamic = "force-dynamic";
  * an API consumer and the UI can never disagree.
  */
 export async function GET() {
+  await connection();
   const [momentum, weights] = await Promise.all([getIndustryMomentum(), getActiveSentimentWeights()]);
   return ok(momentum, {
     weights,

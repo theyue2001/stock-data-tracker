@@ -1,4 +1,6 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/lib/db";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 import { utcDay, utcDayOffset } from "@/lib/dates";
 import { scoreChangeTrend } from "@/lib/scoring";
 import type { IndustryStatus, RiskLevel, StockStatus, TechnicalTrend, ValuationPosition } from "@/lib/types";
@@ -59,6 +61,9 @@ export interface StockRadarRow {
   foreignStreak: number;
   revenueYoy: number | null;
   revenueMomChangePct: number | null;
+  /** Year-to-date basic EPS as filed (t187ap14 is cumulative from January and
+   *  resets at Q1), NOT a single quarter. Stored under periodType
+   *  "quarterly_eps" for historical reasons; every display site says 累計. */
   eps: number | null;
   technicalTrend: TechnicalTrend;
   relativeStrength: number | null;
@@ -71,6 +76,9 @@ export interface StockRadarRow {
 // ---------------------------------------------------------------------------
 
 export async function getMarketStatus() {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const [latest, prior] = await db.marketStatus.findMany({ orderBy: { date: "desc" }, take: 2 });
   if (!latest) return null;
 
@@ -102,6 +110,9 @@ export async function getMarketStatus() {
 }
 
 export async function getIndustryRadar(): Promise<IndustryRadarRow[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const today = utcDay();
   const weekAgo = utcDayOffset(today, 7);
 
@@ -167,7 +178,21 @@ export async function getIndustryRadar(): Promise<IndustryRadarRow[]> {
   });
 }
 
+/** Slugs for `generateStaticParams` on /industries/[slug], so each detail page
+ *  is prerendered per industry instead of blocking on `params` at request
+ *  time. Sorted the same way as the radar list. */
+export async function getIndustrySlugs(): Promise<string[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
+  const rows = await db.industry.findMany({ orderBy: { sortOrder: "asc" }, select: { slug: true } });
+  return rows.map((r) => r.slug);
+}
+
 export async function getIndustryDetail(slug: string) {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const today = utcDay();
   const weekAgo = utcDayOffset(today, 7);
 
@@ -276,6 +301,9 @@ export async function getIndustryDetail(slug: string) {
 }
 
 export async function getStockRadar(): Promise<StockRadarRow[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const stocks = await db.stock.findMany({
     include: {
       industry: true,
@@ -290,6 +318,9 @@ export async function getStockRadar(): Promise<StockRadarRow[]> {
 }
 
 export async function getCapitalFlow() {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const today = utcDay();
 
   const [industries, marketFlows, alerts] = await Promise.all([
@@ -393,6 +424,9 @@ export async function getCapitalFlow() {
 }
 
 export async function getIndicatorOverview() {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const indicators = await db.indicator.findMany({
     orderBy: [{ industry: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     include: {
@@ -431,6 +465,9 @@ export async function getIndicatorOverview() {
 }
 
 export async function getAlerts(limit = 60) {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const alerts = await db.alert.findMany({
     orderBy: { timestamp: "desc" },
     take: limit,
@@ -440,6 +477,9 @@ export async function getAlerts(limit = 60) {
 }
 
 export async function getLatestDailyBrief() {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const brief = await db.dailyBrief.findFirst({ orderBy: { date: "desc" } });
   if (!brief) return null;
 
@@ -503,6 +543,9 @@ export interface WatchlistRow {
 }
 
 export async function getWatchlist(): Promise<WatchlistRow[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData, CACHE_TAGS.watchlist);
   const items = await db.watchlistItem.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -647,6 +690,9 @@ export async function getWatchlistKeys(): Promise<{
   stockIds: Set<string>;
   indicatorIds: Set<string>;
 }> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.watchlist);
   const items = await db.watchlistItem.findMany({
     select: { itemType: true, industryId: true, stockId: true, indicatorId: true },
   });
@@ -659,6 +705,9 @@ export async function getWatchlistKeys(): Promise<{
 
 /** Options for the watchlist "add item" pickers. */
 export async function getWatchlistOptions() {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const [industries, stocks, indicators] = await Promise.all([
     db.industry.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     db.stock.findMany({
@@ -679,6 +728,9 @@ export async function getWatchlistOptions() {
 }
 
 export async function getDataSources() {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   return db.dataSource.findMany({ orderBy: { category: "asc" } });
 }
 

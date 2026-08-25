@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
 import { generateDailyBrief } from "@/lib/ai";
 import type { DailyBriefContext, DailyBriefOutput } from "@/lib/ai/types";
-import { getIndustryMomentum, getSentimentBriefHighlights, type IndustrySentimentRow } from "@/lib/sentiment-queries";
+// Uncached variants: this job runs as a standalone tsx script, outside the
+// Next.js runtime where `"use cache"` / cacheLife() are available.
+import { loadIndustryMomentum, loadSentimentBriefHighlights, type IndustrySentimentRow } from "@/lib/sentiment-queries";
 import { SENTIMENT_STATUS_LABEL } from "@/lib/types";
 import { utcDay, utcDayOffset } from "@/lib/dates";
 
@@ -61,8 +63,8 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
       take: 10,
     }),
     db.watchlistItem.findMany({ include: { industry: true, stock: true } }),
-    getIndustryMomentum(),
-    getSentimentBriefHighlights(),
+    loadIndustryMomentum(),
+    loadSentimentBriefHighlights(),
   ]);
 
   const industryContext = industries.map((ind) => {

@@ -6,6 +6,7 @@
 import { runRefreshJob } from "../src/lib/jobs/refresh-data";
 import { runAlertEngine } from "../src/lib/jobs/generate-alerts";
 import { runDailyBriefJob } from "../src/lib/jobs/generate-daily-brief";
+import { revalidateDeployedCache } from "./_revalidate";
 import { db } from "../src/lib/db";
 
 async function main() {
@@ -17,6 +18,10 @@ async function main() {
 
   const brief = await runDailyBriefJob();
   console.log(`[daily] brief: ${brief.date.toISOString().slice(0, 10)} via ${brief.generatedBy}`);
+
+  // Last, once every write has landed, so the dashboard never re-renders from a
+  // half-updated session.
+  await revalidateDeployedCache("daily");
 }
 
 main()

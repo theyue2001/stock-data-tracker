@@ -2,8 +2,7 @@ import { db } from "@/lib/db";
 import { getActiveScoreWeights } from "@/lib/score-weights";
 import { DEFAULT_SCORE_WEIGHTS } from "@/lib/scoring";
 import { fail, ok } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
+import { connection } from "next/server";
 
 const FIELDS = [
   "fundamentalWeight",
@@ -14,6 +13,7 @@ const FIELDS = [
 ] as const;
 
 export async function GET() {
+  await connection();
   const weights = await getActiveScoreWeights();
   const sum = FIELDS.reduce((s, f) => s + weights[f], 0);
   return ok(weights, { defaults: DEFAULT_SCORE_WEIGHTS, sum: Math.round(sum * 1000) / 1000 });
