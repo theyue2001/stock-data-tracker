@@ -28,24 +28,27 @@ The navigation follows the intended research path:
 
 **Overview → Capital Flow → Industry Radar → Leading Indicators → Stocks**
 
-The homepage is built to answer four questions above the fold:
+The homepage is built to answer five questions above the fold:
 
+- Which industries are strengthening or weakening **today**, and is the whole group participating? (產業氣氛)
 - Where is money flowing now?
-- Which industries are improving?
+- Which industries are improving over the medium term? (產業熱度)
 - Which indicators changed before stock prices?
 - Which themes still have room to continue?
+
+The first two are deliberately adjacent: an industry can be rising on money that only one or two of its names are absorbing, and only the breadth reading separates that from a genuine group move.
 
 ## Pages
 
 | Route | What it does |
 | --- | --- |
-| `/` | Market status, top strengthening/weakening industries, capital-rotation summary, heat ranking, indicator movers, catalysts, heat map, AI summary, watchlist alerts |
+| `/` | Market status, **Industry Momentum (產業氣氛)** with 多方 / 空方 / 細產業 tabs, top strengthening/weakening industries, capital-rotation summary, heat ranking, indicator movers, catalysts, heat map, AI summary, watchlist alerts |
 | `/industries` | All 14 industries as cards or a sortable table, filterable by status |
-| `/industries/[slug]` | Thesis, cycle position, risks, every leading indicator with its source and timestamp, institutional flow history, catalysts, alerts, constituent stocks |
+| `/industries/[slug]` | Short-term sentiment panel (氣氛值, rank path, six components), thesis, cycle position, risks, every leading indicator with its source and timestamp, institutional flow history, catalysts, alerts, constituent stocks |
 | `/capital-flow` | Market/industry/stock-level flow, group-strength detection, buying streaks, turnover leaders, rotation alerts |
 | `/stocks` | 55 stocks, sortable on every column; click a row for its catalyst and risk |
 | `/indicators` | All 49 indicators with charts, direction-aware momentum, and provenance |
-| `/daily-brief` | The 11-section structured brief, with Known Facts / Reasonable Inference / Uncertainty separated |
+| `/daily-brief` | The 11-section structured brief (including 短線產業氣氛), with Known Facts / Reasonable Inference / Uncertainty separated |
 | `/alerts` | Full alert feed with rule, source indicator, change, related stocks, and explanation |
 | `/watchlist` | Add/remove industries, stocks, and indicators; flags changes on watched items |
 
@@ -72,6 +75,53 @@ Three properties are deliberate:
 **Components are squashed, not clamped.** Each raw signal passes through `50 + 50·tanh(x/scale)`. A linear map pins to 0 or 100 as soon as a signal is moderately strong, which collapses the scale to its extremes and makes industries indistinguishable. The same applies to relative strength: a hard clamp ties every strong name at the ceiling, destroying the ranking exactly where it matters most.
 
 Everything is computed strictly **as of** a given date — no row dated later can influence it. That is what makes indicator-vs-subsequent-price backtesting possible later.
+
+---
+
+## Industry Sentiment Score
+
+A second, deliberately **separate** 0–100 score. Heat asks *"is this a good industry to own over the coming weeks"*; sentiment asks *"is this industry strengthening today, and is the whole group participating"*. They routinely disagree, which is the point of showing both — the two never share a table, a weight config, or a status vocabulary.
+
+| Component | Default weight | Derived from |
+| --- | --- | --- |
+| Advancing stock ratio | 25% | Share of member stocks up today (8 of 10 up → 80) |
+| Average industry return | 20% | Equal-weighted average member return |
+| Volume expansion | 15% | Session turnover ÷ trailing 20-session average turnover |
+| Breakout stock ratio | 15% | Share of members in a technical breakout |
+| Institutional flow | 15% | Foreign + trust + ½ dealer net, over the group's own turnover |
+| Relative strength vs. TAIEX | 10% | Today's spread blended with the trailing 5-session spread |
+
+Weights live in `SentimentWeightConfig` and are readable/writable at `/api/sentiment-weights`. Every snapshot stores its own `weightsSnapshot`, so history stays reproducible after a retune. `src/lib/sentiment.ts` is the only place the formula exists — UI components never re-derive a component score or hard-code a weight.
+
+**Breadth is the point.** `Industry +5%, ten names rising` and `Industry +5%, one limit-up and nine flat` must not score the same. The advancing ratio, breakout ratio, and the breadth bar (上漲 / 平盤 / 下跌) exist to separate them; the score's largest single weight is on breadth for that reason.
+
+**Change is ranked above level.** Every session is stored as an `IndustrySentimentSnapshot` with `rank`, `previousRank`, `rank5dAgo`, and `rankDelta`, so the UI leads with `#9 → #1 ↑8` rather than a static ranking. The status classifier checks acceleration and deterioration before it describes the level.
+
+**Normalization is per-component, and the shape is deliberate.** Ratios that are already a share of the group (advancing, breakout) map linearly, because "8 of 10 up = 80" is the number a reader wants to see. Unbounded signals (return, volume, flow, relative strength) are squashed with `50 + 50·tanh(x/scale)` for the same reason the heat score does it. Institutional flow is normalized by the group's *own* turnover rather than cross-sectionally, so a quiet industry's score does not move when some unrelated industry prints a large block.
+
+Statuses:
+
+| Status | Fires when |
+| --- | --- |
+| 短線過熱 | Score ≥ 78 **and** average return ≥ 3% or volume ≥ 2.0× — checked first, so the caution is never masked. **Not** a bearish label |
+| 加速轉強 | Score ≥ 55 **and** score up ≥ 10 or rank up ≥ 5 vs. the previous session |
+| 強勢群聚 | Score ≥ 70, ≥ 70% of members up, and beating TAIEX |
+| 弱勢群聚 | Score ≤ 30, ≤ 30% of members up, and lagging TAIEX |
+| 轉弱 | Score down ≥ 10 or rank down ≥ 5 |
+| 多方 / 中性偏多 / 中性 / 中性偏空 | Level description, once nothing is changing sharply |
+
+**Breakout detection is modular.** `src/lib/breakout.ts` holds independent predicates over one price series — close above the prior 20-session high, and a break of a tight 20-session consolidation. Volume expansion is recorded as *confirmation* and cannot qualify a stock on its own, so a quiet breakout still counts toward breadth. Tightening or extending the definition means adding an entry to `DEFAULT_BREAKOUT_RULES`; no caller, score, or component changes.
+
+**細產業 (sub-industry).** `Stock.subIndustry` carries a finer classification inside each industry (ABF 載板 inside PCB, 液冷模組 inside 散熱). Sub-groups are scored with the identical formula but are **not** persisted — spec-level history is defined at industry level, and sub-groups are cheap to recompute from the price series already loaded. Their day-over-day rank change is derived by running the same computation for the previous session. Their institutional flow sums real per-stock prints where those exist; where they don't, the parent industry's flow is apportioned by turnover share and flagged `推估` in the UI, never presented as a measured print.
+
+**Sentiment vs. Heat.** Both scores are shown side by side on the industry detail page, labelled with the quadrant they land in:
+
+| | High heat | Low heat |
+| --- | --- | --- |
+| **High sentiment** | 主流趨勢 — move has fundamental support | 題材急拉 — short-term participation running ahead of the slower signals |
+| **Low sentiment** | 高檔休息 — medium-term score intact, short-term cooled | 低度關注 |
+
+No buy/sell signal is generated from any of this.
 
 ---
 
@@ -115,7 +165,7 @@ A streak that fills the whole query window is reported as `N+` rather than claim
 
 ## Daily AI brief
 
-`/daily-brief` renders 11 sections plus a three-way epistemic split the AI layer is required to maintain:
+`/daily-brief` renders 11 sections plus a three-way epistemic split the AI layer is required to maintain. Section 02 (短線產業氣氛) reports 氣氛值上升最快族群 / 下降最快族群 / 排名躍升最多族群 / 強勢群聚族群 / 短線過熱族群, and the prompt requires the model to keep the short-term sentiment score and the medium-term heat score distinct rather than averaging them.
 
 - **Known Facts** — directly observed from the data
 - **Reasonable Inference** — interpretation across multiple indicators, labelled as inference
@@ -142,17 +192,23 @@ src/
     charts/               Recharts wrappers (line, bar)
     dashboard/            Heat map
     industries/           Industry card + radar view
+    sentiment/            Industry Momentum table, breadth bar, rank change, sentiment panel
     stocks/               Sortable stock table
     indicators/           Indicator explorer
     layout/               Nav, page header
     ui/                   shadcn/ui + Panel, Sparkline, ScoreBar, badges
   lib/
     ai/                   Provider interface + mock/OpenAI/Claude adapters
-    jobs/                 compute-scores, refresh-data, generate-alerts, generate-daily-brief
+    jobs/                 compute-scores, compute-sentiment, refresh-data, generate-alerts, generate-daily-brief
     providers/            Data-provider interfaces + mock implementations + registry
-    db.ts dates.ts format.ts queries.ts scoring.ts types.ts
+    breakout.ts           Modular breakout rules (Breakout Stock Ratio)
+    sentiment.ts          Industry Sentiment formula + status classifier (pure)
+    sentiment-weights.ts  Active sentiment weighting
+    sentiment-queries.ts  Sentiment read models for the UI
+    sentiment-ui.ts       Sentiment badges / colours / words
+    db.ts dates.ts format.ts queries.ts radar-ui.ts scoring.ts score-weights.ts types.ts
 prisma/
-  schema.prisma           14 models
+  schema.prisma           17 models
   seed-data.ts            Industry/stock/indicator taxonomy (editorial content)
   seed.ts                 Synthetic dataset generator
 scripts/                  Job entry points + node-cron scheduler
@@ -211,12 +267,15 @@ GET /api/alerts?limit=60
 GET /api/daily-brief
 GET /api/watchlist
 GET /api/score-weights
+GET /api/industry-sentiment         sentiment scores, components, breadth, ranks, sub-industries
+GET /api/sentiment-weights
 ```
 
 Mutating:
 
 ```
-PATCH /api/score-weights            adjust weights (must sum to 1.00)
+PATCH /api/score-weights            adjust heat weights (must sum to 1.00)
+PATCH /api/sentiment-weights        adjust sentiment weights (must sum to 1.00)
 POST  /api/jobs/{refresh,alerts,brief,daily}
 ```
 
@@ -264,14 +323,15 @@ Two schema notes carry over:
 
 ### Models
 
-`Industry` `Stock` `Indicator` `IndicatorValue` `IndustryScore` `ScoreWeightConfig` `InstitutionalFlow` `MarketData` `StockFundamental` `MarketStatus` `Catalyst` `Alert` `AlertStock` `DailyBrief` `WatchlistItem` `DataSource`
+`Industry` `Stock` `Indicator` `IndicatorValue` `IndustryScore` `ScoreWeightConfig` `IndustrySentimentSnapshot` `SentimentWeightConfig` `InstitutionalFlow` `MarketData` `StockFundamental` `MarketStatus` `Catalyst` `Alert` `AlertStock` `DailyBrief` `WatchlistItem` `DataSource`
 
 ```
 Industry
  ├── Stocks ──── MarketData, StockFundamental, InstitutionalFlow(stock)
  ├── Indicators ── IndicatorValue ── DataSource
  ├── Catalysts
- ├── IndustryScores
+ ├── IndustryScores            (medium-term heat)
+ ├── IndustrySentimentSnapshots (short-term sentiment, ranked per session)
  ├── InstitutionalFlow(industry)
  └── Alerts ──── AlertStock ──── Stock
 ```
