@@ -74,6 +74,7 @@ model Industry {
   indicators Indicator[]
   catalysts  Catalyst[]
   scores     IndustryScore[]
+  sentiment  IndustrySentimentSnapshot[]
   alerts     Alert[]
   flows      InstitutionalFlow[]
   watchlist  WatchlistItem[]
@@ -88,6 +89,14 @@ model Stock {
   nameZh     String?
   exchange   String  @default("TWSE") // TWSE | TPEx
   industryId String
+
+  /// Finer-grained classification inside the parent industry (e.g. "ABF
+  /// Substrate" inside PCB). Drives the 細產業 tab of the Industry Momentum
+  /// module, which scores these sub-groups with the same sentiment formula
+  /// the parent industries use. Nullable: a stock with no sub-classification
+  /// is grouped under its industry name rather than being dropped.
+  subIndustry   String?
+  subIndustryZh String?
 
   /// "early_strengthening" | "trend_confirmed" | "high_level_consolidation"
   /// | "potential_catch_up" | "overheated" | "weakening"
@@ -108,6 +117,7 @@ model Stock {
   watchlist    WatchlistItem[]
 
   @@index([industryId])
+  @@index([industryId, subIndustry])
   @@map("stocks")
 }
 
@@ -384,6 +394,15 @@ model DailyBrief {
   keyRisks                String // JSON array
   tomorrowWatchlist       String // JSON array
 
+  /// Short-term Industry Sentiment reporting (spec §12). Defaults keep rows
+  /// written before the sentiment module existed readable.
+  sentimentSummary        String @default("")
+  sentimentRising         String @default("[]") // JSON array — 氣氛值上升最快族群
+  sentimentFalling        String @default("[]") // JSON array — 氣氛值下降最快族群
+  sentimentRankJumps      String @default("[]") // JSON array — 排名躍升最多族群
+  sentimentStrongClusters String @default("[]") // JSON array — 強勢群聚族群
+  sentimentOverheated     String @default("[]") // JSON array — 短線過熱族群
+
   knownFacts          String // JSON array
   reasonableInference String // JSON array
   uncertainty         String // JSON array
@@ -442,4 +461,101 @@ model MarketStatus {
   createdAt        DateTime @default(now())
 
   @@map("market_status")
+}
+
+// ---------------------------------------------------------------------------
+// Short-term sentiment / momentum (產業氣氛)
+//
+// Deliberately SEPARATE from IndustryScore (the medium-term Industry Heat
+// Score). Heat answers "is this a good industry to own over the coming
+// weeks"; sentiment answers "is this industry strengthening TODAY, and is
+// the whole group participating". The two are read side by side (spec §10
+// Case A-D) precisely because they can disagree, so they never share a
+// table, a weight config, or a status vocabulary.
+// ---------------------------------------------------------------------------
+
+/// Configurable weighting for the Industry Sentiment Score. Mirrors
+/// ScoreWeightConfig: a table rather than constants so weights are tunable
+/// via /api/sentiment-weights without a redeploy, and never hard-coded in
+/// UI components.
+model SentimentWeightConfig {
+  id                       String   @id @default(cuid())
+  name                     String   @unique @default("default")
+  advancingRatioWeight     Float    @default(0.25)
+  averageReturnWeight      Float    @default(0.20)
+  volumeExpansionWeight    Float    @default(0.15)
+  breakoutRatioWeight      Float    @default(0.15)
+  institutionalFlowWeight  Float    @default(0.15)
+  relativeStrengthWeight   Float    @default(0.10)
+  isActive                 Boolean  @default(true)
+  updatedAt                DateTime @updatedAt
+  createdAt                DateTime @default(now())
+
+  @@map("sentiment_weight_configs")
+}
+
+/// One row per industry per session: the 0-100 Industry Sentiment Score, the
+/// six component scores behind it, the raw measures the UI displays
+/// (breadth counts, volume ratio, net institutional flow), and the ranking
+/// bookkeeping that makes "#9 → #1 ↑8" possible.
+model IndustrySentimentSnapshot {
+  id         String   @id @default(cuid())
+  industryId String
+  date       DateTime
+
+  sentimentScore Float
+
+  // --- component scores, each 0-100 ---------------------------------------
+  advancingRatio         Float
+  averageReturn          Float
+  volumeExpansion        Float
+  breakoutRatio          Float
+  institutionalFlowScore Float
+  relativeStrengthScore  Float
+
+  // --- raw measures the components were derived from ----------------------
+  // Stored alongside the scores so the table can show "8↑ / 1→ / 1↓" and
+  // "1.8x" without re-deriving them, and so a stored score always remains
+  // explainable from the same row.
+  /// Share of member stocks up today, 0-1.
+  advancingSharePct Float @default(0)
+  advancingCount    Int   @default(0)
+  flatCount         Int   @default(0)
+  decliningCount    Int   @default(0)
+  stockCount        Int   @default(0)
+  /// Equal-weighted average daily return of member stocks, in percent.
+  averageReturnPct  Float @default(0)
+  /// Session turnover / trailing 20-session average turnover, e.g. 1.8.
+  volumeRatio       Float @default(1)
+  breakoutCount     Int   @default(0)
+  foreignNet        Float @default(0)
+  trustNet          Float @default(0)
+  dealerNet         Float @default(0)
+  /// Industry return minus TAIEX return for the session, in percentage points.
+  relativeStrengthPct Float @default(0)
+
+  // --- ranking ------------------------------------------------------------
+  rank         Int
+  previousRank Int?
+  /// Rank five sessions earlier, for the "#11 → #8 → #6 → #3 → #1" trend.
+  rank5dAgo    Int?
+  /// previousRank - rank. Positive means the industry climbed the ranking.
+  rankDelta    Int  @default(0)
+
+  /// "strong_cluster" | "accelerating" | "bullish" | "mild_bullish"
+  /// | "neutral" | "mild_bearish" | "weakening" | "weak_cluster" | "overheated"
+  status String @default("neutral")
+
+  /// Snapshot of the weights used, so a historical sentiment score stays
+  /// reproducible after the weights are retuned.
+  weightsSnapshot String
+
+  createdAt DateTime @default(now())
+
+  industry Industry @relation(fields: [industryId], references: [id])
+
+  @@unique([industryId, date])
+  @@index([industryId, date])
+  @@index([date, rank])
+  @@map("industry_sentiment_snapshots")
 }

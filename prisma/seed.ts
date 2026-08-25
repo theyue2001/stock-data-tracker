@@ -12,7 +12,9 @@
 import { db } from "../src/lib/db";
 import { SEED_INDUSTRIES } from "./seed-data";
 import { DEFAULT_SCORE_WEIGHTS } from "../src/lib/scoring";
+import { DEFAULT_SENTIMENT_WEIGHTS } from "../src/lib/sentiment";
 import { backfillIndustryScores, classifyStockTechnicals, deriveStockStatus } from "../src/lib/jobs/compute-scores";
+import { backfillIndustrySentiment } from "../src/lib/jobs/compute-sentiment";
 import { utcDay, utcDayOffset } from "../src/lib/dates";
 import type { StockStatus } from "../src/lib/types";
 
@@ -37,6 +39,10 @@ function clamp(v: number, lo: number, hi: number): number {
 const TRADING_DAYS = 60;
 const INDICATOR_PERIODS = 16;
 const SCORE_DAYS = 30;
+// Sentiment history only needs to cover the trend/rank-path window the UI
+// draws plus a little headroom — every extra session costs a full
+// cross-industry recomputation and none of it is displayed.
+const SENTIMENT_DAYS = 12;
 
 const dayOffset = utcDayOffset;
 
@@ -47,6 +53,7 @@ async function main() {
   await db.alert.deleteMany();
   await db.watchlistItem.deleteMany();
   await db.dailyBrief.deleteMany();
+  await db.industrySentimentSnapshot.deleteMany();
   await db.catalyst.deleteMany();
   await db.institutionalFlow.deleteMany();
   await db.stockFundamental.deleteMany();
@@ -58,6 +65,7 @@ async function main() {
   await db.industry.deleteMany();
   await db.marketStatus.deleteMany();
   await db.scoreWeightConfig.deleteMany();
+  await db.sentimentWeightConfig.deleteMany();
   await db.dataSource.deleteMany();
 
   const today = utcDay();
@@ -108,6 +116,11 @@ async function main() {
   console.log("Seeding score weight config...");
   await db.scoreWeightConfig.create({
     data: { name: "default", ...DEFAULT_SCORE_WEIGHTS, isActive: true },
+  });
+
+  console.log("Seeding sentiment weight config...");
+  await db.sentimentWeightConfig.create({
+    data: { name: "default", ...DEFAULT_SENTIMENT_WEIGHTS, isActive: true },
   });
 
   // -------------------------------------------------------------------------
@@ -329,6 +342,8 @@ async function main() {
           nameZh: seedStock.nameZh,
           exchange: seedStock.exchange ?? "TWSE",
           industryId: industry.id,
+          subIndustry: seedStock.subIndustry,
+          subIndustryZh: seedStock.subIndustryZh,
           status,
           mainCatalyst: seedStock.mainCatalyst,
           mainRisk: seedStock.mainRisk,
@@ -485,6 +500,13 @@ async function main() {
   console.log(`Backfilling ${SCORE_DAYS} days of industry scores...`);
   await backfillIndustryScores(SCORE_DAYS, today);
 
+  // Sentiment history is backfilled through the SAME derivation the daily
+  // refresh uses, oldest-first, so each session's rank delta and status
+  // resolve against a previous session that already exists — the whole module
+  // is built on those day-over-day changes.
+  console.log(`Backfilling ${SENTIMENT_DAYS} days of industry sentiment...`);
+  await backfillIndustrySentiment(SENTIMENT_DAYS, today);
+
   // -------------------------------------------------------------------------
   // Watchlist demo entries
   // -------------------------------------------------------------------------
@@ -510,6 +532,7 @@ async function main() {
     marketData: await db.marketData.count(),
     flows: await db.institutionalFlow.count(),
     scores: await db.industryScore.count(),
+    sentimentSnapshots: await db.industrySentimentSnapshot.count(),
     catalysts: await db.catalyst.count(),
     watchlist: await db.watchlistItem.count(),
   };
