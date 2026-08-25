@@ -57,9 +57,8 @@ export function IndustryCard({
   return (
     <ClickableRow
       href={`/industries/${row.slug}`}
-      className="flex flex-col gap-2.5 p-4"
-      style={{ background: "var(--rd-panel)", border: "1px solid var(--rd-line)" }}
-      hoverBackground="var(--rd-panel)"
+      className="rd-card rd-card-tap @container flex flex-col gap-2.5 p-3.5 sm:p-4"
+      noTapStyle
     >
       <div className="flex items-center gap-2">
         <span className="text-[15px] font-bold">{row.nameZh ?? row.name}</span>
@@ -81,7 +80,7 @@ export function IndustryCard({
       <div className="h-1" style={{ background: "rgba(243,242,242,.12)" }}>
         <div className="h-1" style={{ width: `${row.scoreToday}%`, background: heatBarColor(row.scoreToday, status) }} />
       </div>
-      <div className="grid grid-cols-2 gap-x-3.5 gap-y-1.5">
+      <div className="grid grid-cols-1 gap-x-3.5 gap-y-1.5 @[240px]:grid-cols-2">
         <MomentumCell label="資金流" word={flow} />
         <MomentumCell label="領先指標" word={lead} />
         <MomentumCell label="基本面動能" word={fund} />

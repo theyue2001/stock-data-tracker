@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FilterChip } from "@/components/radar/filter-chip";
+import { PageHeader, PageShell } from "@/components/layout/page";
 import { StatusChip } from "@/components/radar/status-chip";
 import { RdSparkline } from "@/components/radar/rd-sparkline";
 import { indicatorDirection } from "@/lib/radar-ui";
@@ -21,21 +22,20 @@ export function IndicatorExplorer({ rows }: { rows: Row[] }) {
   const visible = group === "全部" ? rows : rows.filter((r) => r.industryName === group);
 
   return (
-    <div className="px-6 pb-6">
-      <div className="flex flex-wrap items-baseline gap-3.5 py-[18px]">
-        <h1 className="text-[22px] font-black">領先指標</h1>
-        <span className="text-[11px] font-medium text-[var(--rd-text-secondary)]">在股價反應前，先看見產業數據的轉折</span>
-        <span className="ml-auto font-mono text-[10px] text-[var(--rd-text-muted)]">12M TREND</span>
+    <PageShell>
+      <PageHeader title="領先指標" note="12M TREND" subtitle="在股價反應前，先看見產業數據的轉折" />
+
+      <div className="rd-card rd-card-body mb-3 flex flex-col gap-2.5 sm:mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-medium text-[var(--rd-text-muted)]">產業</span>
+          {groups.map((g) => (
+            <FilterChip key={g} label={g} active={group === g} onClick={() => setGroup(g)} />
+          ))}
+        </div>
+        <span className="text-[10px] font-medium text-[var(--rd-text-muted)]">紅＝改善 · 綠＝惡化/壓力 · 灰＝持平</span>
       </div>
 
-      <div className="rd-rule flex flex-wrap items-center gap-2 py-3">
-        {groups.map((g) => (
-          <FilterChip key={g} label={g} active={group === g} onClick={() => setGroup(g)} />
-        ))}
-        <span className="ml-auto text-[10px] font-medium text-[var(--rd-text-muted)]">紅＝改善 · 綠＝惡化/壓力 · 灰＝持平</span>
-      </div>
-
-      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-3.5 xl:grid-cols-3">
         {visible.map((ind) => {
           const improving = ind.pctChange == null ? null : (ind.higherIsBetter ? ind.pctChange : -ind.pctChange) > 0 ? true : ind.pctChange === 0 ? null : false;
           const badge = indicatorDirection(improving);
@@ -45,16 +45,15 @@ export function IndicatorExplorer({ rows }: { rows: Row[] }) {
             <Link
               key={ind.id}
               href={`/industries/${ind.industrySlug}`}
-              className="block p-4"
-              style={{ background: "var(--rd-panel)", border: "1px solid var(--rd-line)" }}
+              className="rd-card rd-card-tap block p-3.5 text-[var(--rd-text)] sm:p-4"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-bold">{ind.name}</span>
-                <span className="font-mono text-[9px] text-[var(--rd-text-muted)]">{ind.industryName}</span>
-                <span className="ml-auto">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 flex-1 text-[13px] font-bold">{ind.name}</span>
+                <span className="shrink-0">
                   <StatusChip badge={badge} />
                 </span>
               </div>
+              <div className="mt-0.5 truncate font-mono text-[9px] text-[var(--rd-text-muted)]">{ind.industryName}</div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="tnum text-[22px] font-extrabold">{num(ind.value, Math.abs(ind.value ?? 0) < 20 ? 2 : 1)}</span>
                 <span className="text-[10.5px] font-medium text-[var(--rd-text-secondary)]">{ind.unit}</span>
@@ -73,6 +72,6 @@ export function IndicatorExplorer({ rows }: { rows: Row[] }) {
       </div>
 
       {visible.length === 0 && <p className="py-10 text-center text-[12px] text-[var(--rd-text-secondary)]">此分類尚無指標。</p>}
-    </div>
+    </PageShell>
   );
 }

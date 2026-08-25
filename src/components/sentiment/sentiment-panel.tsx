@@ -1,4 +1,4 @@
-import { SectionHeader } from "@/components/radar/section-header";
+import { Panel } from "@/components/radar/panel";
 import { StatusChip } from "@/components/radar/status-chip";
 import { HeatBar } from "@/components/radar/heat-bar";
 import { BreadthBar, BreadthCounts } from "@/components/sentiment/breadth-bar";
@@ -34,17 +34,11 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
   const barColor = sentimentBarColor(panel.sentimentScore, panel.status);
 
   return (
-    <div>
-      <SectionHeader
-        title="短線氣氛"
-        kicker="SHORT-TERM SENTIMENT"
-        note={<span>{panel.date} · 與中期產業熱度分開計算</span>}
-      />
-
-      <div className="mt-2.5 p-4" style={{ background: "var(--rd-panel)", border: "1px solid var(--rd-line)" }}>
+    <Panel title="短線氣氛" kicker="SHORT-TERM SENTIMENT" note={`${panel.date} · 與中期產業熱度分開計算`}>
+      <>
         {/* headline: score + rank + status */}
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
-          <div>
+          <div className="min-w-0">
             <div className="text-[10px] font-medium text-[var(--rd-text-secondary)]">氣氛值 SENTIMENT</div>
             <div className="mt-0.5 flex items-baseline gap-2">
               <span className="tnum text-[30px] leading-none font-extrabold" style={{ color: sentimentTextColor(panel.sentimentScore) }}>
@@ -56,8 +50,8 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
               </span>
               <span className="text-[10px] text-[var(--rd-text-muted)]">vs 昨日</span>
             </div>
-            <div className="mt-2" style={{ width: 150 }}>
-              <HeatBar score={panel.sentimentScore} color={barColor} width={150} />
+            <div className="mt-2 flex w-full max-w-[150px]">
+              <HeatBar score={panel.sentimentScore} color={barColor} grow />
             </div>
           </div>
 
@@ -83,8 +77,8 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
 
         {/* component readings — the six inputs behind the score */}
         <div
-          className="mt-3.5 grid gap-x-4 gap-y-0"
-          style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))", borderTop: "1px solid var(--rd-line)", paddingTop: 10 }}
+          className="mt-3.5 grid gap-x-4 gap-y-0 sm:grid-cols-2 lg:grid-cols-3"
+          style={{ borderTop: "1px solid var(--rd-line)", paddingTop: 10 }}
         >
           <Metric label="漲跌家數" score={panel.components.advancingRatio}>
             <span className="flex items-center gap-2">
@@ -137,10 +131,7 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
           </span>
         </div>
 
-        <div
-          className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 p-3"
-          style={{ border: "1px solid var(--rd-line)", background: "rgba(243,242,242,.03)" }}
-        >
+        <div className="rd-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 p-3" style={{ background: "var(--rd-card-hover)" }}>
           <span className="flex items-baseline gap-1.5">
             <span className="text-[10px] font-medium text-[var(--rd-text-muted)]">短線氣氛</span>
             <span className="tnum text-[15px] font-bold" style={{ color: sentimentTextColor(panel.sentimentScore) }}>
@@ -161,8 +152,8 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
         <p className="mt-2.5 text-[9.5px] leading-[1.7] text-[var(--rd-text-muted)]">
           短線氣氛衡量「今天這個族群是不是整體在動」——廣度、量能、法人參與、相對強度；中期產業熱度衡量基本面、領先指標、資金流、技術面與催化事件。兩者刻意分開，數值不互相取代，也不構成買賣建議。
         </p>
-      </div>
-    </div>
+      </>
+    </Panel>
   );
 }
 
