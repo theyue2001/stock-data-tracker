@@ -19,7 +19,15 @@
     "jobs:brief": "tsx scripts/run-daily-brief.ts",
     "jobs:refresh": "tsx scripts/run-refresh.ts",
     "jobs:daily": "tsx scripts/run-daily.ts",
-    "cron": "tsx scripts/cron.ts"
+    "cron": "tsx scripts/cron.ts",
+    "db:seed:live": "tsx prisma/seed-taxonomy.ts",
+    "db:backfill": "tsx scripts/backfill.ts",
+    "import:indicators": "tsx scripts/import-indicators.ts",
+    "db:bootstrap": "prisma migrate deploy && npm run db:seed:live && npm run db:backfill && npm run jobs:daily",
+    "verify:sources": "tsx scripts/verify-live-sources.ts",
+    "watchlist:backup": "tsx scripts/watchlist-backup.ts",
+    "watchlist:restore": "tsx scripts/watchlist-backup.ts --restore",
+    "screenshots": "tsx scripts/screenshot.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

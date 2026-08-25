@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
+import { dataMode } from "@/lib/providers/registry";
 
 export function ok<T>(data: T, meta?: Record<string, unknown>) {
   return NextResponse.json({
     data,
     meta: {
-      // Everything served by this MVP is synthetic demo data. Clients should
-      // surface this rather than presenting values as real market data.
-      isDemoData: true,
+      // Which provider set this instance is writing with. `isDemoData` is a
+      // statement about the pipeline, not a guarantee about every row: a
+      // database switched from demo to live still holds whatever mock rows
+      // predate the switch. Per-row `isMock` is the ground truth, and it is
+      // carried on IndicatorValue, MarketData, InstitutionalFlow, Catalyst,
+      // StockFundamental and MarketStatus.
+      dataMode,
+      isDemoData: dataMode === "mock",
       generatedAt: new Date().toISOString(),
       ...meta,
     },
