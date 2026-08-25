@@ -1,7 +1,33 @@
 import { db } from "@/lib/db";
 import { generateDailyBrief } from "@/lib/ai";
-import type { DailyBriefContext } from "@/lib/ai/types";
+import type { DailyBriefContext, DailyBriefOutput } from "@/lib/ai/types";
+import { getIndustryMomentum, getSentimentBriefHighlights, type IndustrySentimentRow } from "@/lib/sentiment-queries";
+import { SENTIMENT_STATUS_LABEL } from "@/lib/types";
 import { utcDay, utcDayOffset } from "@/lib/dates";
+
+/** Renders one industry's sentiment reading as the single factual sentence
+ *  the brief quotes. Shared by all five highlight lists so a group reads
+ *  identically wherever it appears. */
+function sentimentLine(r: IndustrySentimentRow): string {
+  const rank = r.previousRank !== null ? `#${r.previousRank} → #${r.rank}` : `#${r.rank}`;
+  const delta = r.scoreDelta > 0 ? `+${r.scoreDelta.toFixed(1)}` : r.scoreDelta.toFixed(1);
+  return (
+    `${r.name}: sentiment ${r.sentimentScore.toFixed(0)} (${delta} vs. prior session), rank ${rank}, ` +
+    `${r.advancingCount}/${r.stockCount} members up, volume ${r.volumeRatio.toFixed(1)}x its 20-session average, ` +
+    `relative strength ${r.relativeStrengthPct >= 0 ? "+" : ""}${r.relativeStrengthPct.toFixed(2)}pp vs. TAIEX ` +
+    `— ${SENTIMENT_STATUS_LABEL[r.status]}.`
+  );
+}
+
+/** LLM providers spread whatever JSON they returned. A model that omits a
+ *  field would otherwise put `undefined` through JSON.stringify and fail the
+ *  write, so every field is defaulted before it reaches the database. */
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+function arr(v: unknown): string[] {
+  return Array.isArray(v) ? v.map(String) : [];
+}
 
 /**
  * Aggregates today's data across industries, indicators, flows, catalysts,
@@ -14,7 +40,7 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
   const today = utcDay(referenceDate);
   const weekAgo = utcDayOffset(today, 7);
 
-  const [marketStatus, industries, catalysts, alerts, watchlist] = await Promise.all([
+  const [marketStatus, industries, catalysts, alerts, watchlist, momentum, highlights] = await Promise.all([
     db.marketStatus.findFirst({ where: { date: { lte: today } }, orderBy: { date: "desc" } }),
     db.industry.findMany({
       include: {
@@ -35,6 +61,8 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
       take: 10,
     }),
     db.watchlistItem.findMany({ include: { industry: true, stock: true } }),
+    getIndustryMomentum(),
+    getSentimentBriefHighlights(),
   ]);
 
   const industryContext = industries.map((ind) => {
@@ -92,6 +120,32 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
     industries: industryContext,
     indicatorChanges,
     topFlows,
+    sentiment: {
+      date: momentum.date,
+      industries: momentum.industries.map((r) => ({
+        name: r.name,
+        slug: r.slug,
+        sentimentScore: r.sentimentScore,
+        scoreDelta: r.scoreDelta,
+        rank: r.rank,
+        previousRank: r.previousRank,
+        rankDelta: r.rankDelta,
+        status: r.status,
+        advancingCount: r.advancingCount,
+        decliningCount: r.decliningCount,
+        stockCount: r.stockCount,
+        volumeRatio: r.volumeRatio,
+        relativeStrengthPct: r.relativeStrengthPct,
+        foreignNet: r.foreignNet,
+        trustNet: r.trustNet,
+        heatScore: r.heatScore,
+      })),
+      fastestRising: highlights.fastestRising.map(sentimentLine),
+      fastestFalling: highlights.fastestFalling.map(sentimentLine),
+      biggestRankJumps: highlights.biggestRankJumps.map(sentimentLine),
+      strongClusters: highlights.strongClusters.map(sentimentLine),
+      overheated: highlights.overheated.map(sentimentLine),
+    },
     catalysts: catalysts.map((c) => ({ title: c.title, industryName: c.industry?.name ?? null, importance: c.importance })),
     alerts: alerts.map((a) => ({
       title: a.title,
@@ -105,45 +159,38 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
     watchedIndustries: watchlist.filter((w) => w.itemType === "industry" && w.industry).map((w) => w.industry!.name),
   };
 
-  const brief = await generateDailyBrief(context);
+  const brief: DailyBriefOutput = await generateDailyBrief(context);
+
+  // One field map, applied identically to create and update, so the two can
+  // never drift apart as the brief grows fields.
+  const fields = {
+    marketSummary: str(brief.marketSummary),
+    sentimentSummary: str(brief.sentimentSummary),
+    sentimentRising: JSON.stringify(arr(brief.sentimentRising)),
+    sentimentFalling: JSON.stringify(arr(brief.sentimentFalling)),
+    sentimentRankJumps: JSON.stringify(arr(brief.sentimentRankJumps)),
+    sentimentStrongClusters: JSON.stringify(arr(brief.sentimentStrongClusters)),
+    sentimentOverheated: JSON.stringify(arr(brief.sentimentOverheated)),
+    strongestIndustries: JSON.stringify(arr(brief.strongestIndustries)),
+    weakestIndustries: JSON.stringify(arr(brief.weakestIndustries)),
+    capitalRotation: str(brief.capitalRotation),
+    leadingIndicatorChanges: JSON.stringify(arr(brief.leadingIndicatorChanges)),
+    institutionalActivity: str(brief.institutionalActivity),
+    emergingThemes: JSON.stringify(arr(brief.emergingThemes)),
+    stocksToWatch: JSON.stringify(arr(brief.stocksToWatch)),
+    overheatedThemes: JSON.stringify(arr(brief.overheatedThemes)),
+    keyRisks: JSON.stringify(arr(brief.keyRisks)),
+    tomorrowWatchlist: JSON.stringify(arr(brief.tomorrowWatchlist)),
+    knownFacts: JSON.stringify(arr(brief.knownFacts)),
+    reasonableInference: JSON.stringify(arr(brief.reasonableInference)),
+    uncertainty: JSON.stringify(arr(brief.uncertainty)),
+    generatedBy: brief.generatedBy,
+  };
 
   const saved = await db.dailyBrief.upsert({
     where: { date: today },
-    create: {
-      date: today,
-      marketSummary: brief.marketSummary,
-      strongestIndustries: JSON.stringify(brief.strongestIndustries),
-      weakestIndustries: JSON.stringify(brief.weakestIndustries),
-      capitalRotation: brief.capitalRotation,
-      leadingIndicatorChanges: JSON.stringify(brief.leadingIndicatorChanges),
-      institutionalActivity: brief.institutionalActivity,
-      emergingThemes: JSON.stringify(brief.emergingThemes),
-      stocksToWatch: JSON.stringify(brief.stocksToWatch),
-      overheatedThemes: JSON.stringify(brief.overheatedThemes),
-      keyRisks: JSON.stringify(brief.keyRisks),
-      tomorrowWatchlist: JSON.stringify(brief.tomorrowWatchlist),
-      knownFacts: JSON.stringify(brief.knownFacts),
-      reasonableInference: JSON.stringify(brief.reasonableInference),
-      uncertainty: JSON.stringify(brief.uncertainty),
-      generatedBy: brief.generatedBy,
-    },
-    update: {
-      marketSummary: brief.marketSummary,
-      strongestIndustries: JSON.stringify(brief.strongestIndustries),
-      weakestIndustries: JSON.stringify(brief.weakestIndustries),
-      capitalRotation: brief.capitalRotation,
-      leadingIndicatorChanges: JSON.stringify(brief.leadingIndicatorChanges),
-      institutionalActivity: brief.institutionalActivity,
-      emergingThemes: JSON.stringify(brief.emergingThemes),
-      stocksToWatch: JSON.stringify(brief.stocksToWatch),
-      overheatedThemes: JSON.stringify(brief.overheatedThemes),
-      keyRisks: JSON.stringify(brief.keyRisks),
-      tomorrowWatchlist: JSON.stringify(brief.tomorrowWatchlist),
-      knownFacts: JSON.stringify(brief.knownFacts),
-      reasonableInference: JSON.stringify(brief.reasonableInference),
-      uncertainty: JSON.stringify(brief.uncertainty),
-      generatedBy: brief.generatedBy,
-    },
+    create: { date: today, ...fields },
+    update: fields,
   });
 
   return saved;

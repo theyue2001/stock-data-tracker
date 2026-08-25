@@ -36,6 +36,37 @@ export class MockAIBriefProvider implements AIBriefProvider {
       (i) => `${i.name}: heat score ${i.scoreToday.toFixed(1)} (${i.status}), vs. ${i.scoreWeekAgo.toFixed(1)} a week ago.`,
     );
 
+    // --- Short-term sentiment (spec §12) ---------------------------------
+    // Composed from the already-ranked highlight lists rather than re-sorting
+    // here, so the brief, the API and the Overview module can never disagree
+    // about which group rose fastest.
+    const sent = ctx.sentiment;
+    const sentimentSummary = sent.industries.length
+      ? `Across ${sent.industries.length} industries, ${sent.industries.filter((i) => i.sentimentScore >= 50).length} closed with a bullish short-term sentiment reading (score ≥ 50) and ${
+          sent.industries.filter((i) => i.sentimentScore < 50).length
+        } bearish. ${
+          sent.fastestRising.length
+            ? `The sharpest single-session improvement was ${sent.fastestRising[0]}`
+            : "No industry improved its sentiment score today."
+        } Sentiment measures today's breadth and participation only; it is a separate reading from the medium-term heat score.`
+      : "No industry sentiment snapshot is available for today.";
+
+    const sentimentRising = sent.fastestRising.length
+      ? sent.fastestRising
+      : ["No industry raised its sentiment score versus the previous session."];
+    const sentimentFalling = sent.fastestFalling.length
+      ? sent.fastestFalling
+      : ["No industry lowered its sentiment score versus the previous session."];
+    const sentimentRankJumps = sent.biggestRankJumps.length
+      ? sent.biggestRankJumps
+      : ["No industry climbed the sentiment ranking today."];
+    const sentimentStrongClusters = sent.strongClusters.length
+      ? sent.strongClusters
+      : ["No industry currently shows broad-based clustered strength."];
+    const sentimentOverheated = sent.overheated.length
+      ? sent.overheated
+      : ["No industry shows an overheated short-term reading. Note that overheated describes an extended move, not a bearish call."];
+
     const capitalRotation = ctx.topFlows.length
       ? `Capital is concentrating in ${ctx.topFlows
           .slice(0, 3)
@@ -71,6 +102,21 @@ export class MockAIBriefProvider implements AIBriefProvider {
       .slice(0, 3)
       .map((i) => `${i.name} is showing early acceleration in both capital flow and leading indicators — worth monitoring before it becomes consensus.`);
 
+    // Sentiment high / heat low is the spec §10 Case B signature: the market
+    // is moving a group the medium-term score has not caught up to. That is
+    // exactly the "before it becomes obvious" case the module exists for, so
+    // it belongs in emerging themes rather than being left for the reader to
+    // spot across two tables.
+    const earlyMovers = sent.industries
+      .filter((i) => i.sentimentScore >= 65 && i.heatScore < 60 && i.rankDelta > 0)
+      .slice(0, 3)
+      .map(
+        (i) =>
+          `${i.name}: short-term sentiment ${i.sentimentScore.toFixed(0)} against a medium-term heat score of ${i.heatScore.toFixed(
+            0,
+          )}, ranking ${i.previousRank !== null ? `#${i.previousRank} → #${i.rank}` : `#${i.rank}`}. Short-term participation is running ahead of the slower fundamental signals — theme-driven rather than fundamentally confirmed, on this data.`,
+      );
+
     const stocksToWatch = ctx.watchedStocks.length
       ? ctx.watchedStocks.slice(0, 8)
       : ["No stocks currently on the watchlist — add tickers from the Stock Radar to personalize this section."];
@@ -98,6 +144,8 @@ export class MockAIBriefProvider implements AIBriefProvider {
 
     const knownFacts = [
       marketSummary,
+      ...sentimentRising.slice(0, 2),
+      ...sentimentRankJumps.slice(0, 1),
       ...leadingIndicatorChanges.slice(0, 3),
       ...ctx.catalysts.slice(0, 3).map((c) => `${c.industryName ?? "Market"}: ${c.title}`),
     ];
@@ -105,23 +153,33 @@ export class MockAIBriefProvider implements AIBriefProvider {
     const reasonableInference = [
       capitalRotation,
       ...emergingThemes,
+      ...earlyMovers,
       "Industries showing simultaneous improvement across capital flow AND leading indicators tend to precede broader price recognition — this is an inference from correlated signals, not a guarantee.",
     ];
 
     const uncertainty = [
       "This brief is generated from a rule-based mock-data pipeline for the MVP; indicator coverage and history length are limited.",
+      "Industry sentiment is a single-session breadth reading. A one-day jump in sentiment or ranking is not by itself a trend, and it can reverse the next session.",
       "Institutional flow and heat scores can reverse quickly; a single-day reading is not a trend.",
       "This is investment research support, not a recommendation to buy or sell, and does not promise any return.",
     ];
 
     return {
       marketSummary,
+      sentimentSummary,
+      sentimentRising,
+      sentimentFalling,
+      sentimentRankJumps,
+      sentimentStrongClusters,
+      sentimentOverheated,
       strongestIndustries,
       weakestIndustries,
       capitalRotation,
       leadingIndicatorChanges,
       institutionalActivity,
-      emergingThemes: emergingThemes.length ? emergingThemes : ["No clearly emerging theme stood out today."],
+      emergingThemes: [...emergingThemes, ...earlyMovers].length
+        ? [...emergingThemes, ...earlyMovers]
+        : ["No clearly emerging theme stood out today."],
       stocksToWatch,
       overheatedThemes: overheatedThemes.length ? overheatedThemes : ["No industries are currently flagged as overheated."],
       keyRisks,

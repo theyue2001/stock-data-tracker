@@ -36,6 +36,36 @@ export interface DailyBriefContext {
     trustNet: number;
     breakoutCount: number;
   }>;
+  /** Short-term Industry Sentiment readings (spec §12). Separate from the
+   *  `industries` array above, which carries the medium-term heat score — the
+   *  brief is expected to report both without conflating them. */
+  sentiment: {
+    date: string | null;
+    /** Every industry ranked by today's sentiment score. */
+    industries: Array<{
+      name: string;
+      slug: string;
+      sentimentScore: number;
+      scoreDelta: number;
+      rank: number;
+      previousRank: number | null;
+      rankDelta: number;
+      status: string;
+      advancingCount: number;
+      decliningCount: number;
+      stockCount: number;
+      volumeRatio: number;
+      relativeStrengthPct: number;
+      foreignNet: number;
+      trustNet: number;
+      heatScore: number;
+    }>;
+    fastestRising: string[];
+    fastestFalling: string[];
+    biggestRankJumps: string[];
+    strongClusters: string[];
+    overheated: string[];
+  };
   catalysts: Array<{ title: string; industryName: string | null; importance: string }>;
   alerts: Array<{ title: string; industryName: string | null; importance: string; explanation: string }>;
   /** Watched items, kept separate so a stock-specific section never lists an
@@ -46,6 +76,13 @@ export interface DailyBriefContext {
 
 export interface DailyBriefOutput {
   marketSummary: string;
+  /** One-paragraph read of today's short-term industry sentiment. */
+  sentimentSummary: string;
+  sentimentRising: string[];
+  sentimentFalling: string[];
+  sentimentRankJumps: string[];
+  sentimentStrongClusters: string[];
+  sentimentOverheated: string[];
   strongestIndustries: string[];
   weakestIndustries: string[];
   capitalRotation: string;
