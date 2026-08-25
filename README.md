@@ -12,13 +12,22 @@ An investment **research and decision-support** dashboard for Taiwan-listed equi
 
 ```bash
 npm install
-npx prisma migrate dev      # creates prisma/dev.db and applies migrations
+
+# A Postgres to point at. Any instance works; this is the throwaway one.
+docker run --name radar-pg -e POSTGRES_PASSWORD=postgres   -e POSTGRES_DB=radar -p 5432:5432 -d postgres:17
+cp .env.example .env        # then set DATABASE_URL + DATABASE_URL_UNPOOLED
+
+npx prisma migrate dev      # applies migrations
 npm run db:seed             # ~15 s: builds the full demo dataset
 npm run jobs:daily          # refresh → scores → alerts → AI brief
 npm run dev                 # http://localhost:3000
 ```
 
 `npm run db:reset` does all four data steps from scratch in one command.
+
+Both `DATABASE_URL` and `DATABASE_URL_UNPOOLED` must be set or Prisma refuses to
+load the schema — `prisma generate` fails too, so a missing one breaks the build,
+not just queries. Locally, point both at the same string.
 
 ---
 
@@ -290,7 +299,8 @@ Every response is wrapped as `{ data, meta }`, and `meta.isDemoData` is `true` f
 `.env` (nothing is required for the demo to run):
 
 ```bash
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+DATABASE_URL_UNPOOLED="postgresql://user:pass@host:5432/db?sslmode=require"
 
 # AI provider — omit for the rule-based mock
 AI_PROVIDER="mock"          # mock | openai | claude
@@ -309,16 +319,17 @@ CRON_TIMEZONE="Asia/Taipei"
 
 ## Database
 
-SQLite for local development, so the MVP runs with no external service. The schema avoids SQLite-only features.
+PostgreSQL, via Prisma. The datasource declares two URLs:
 
-### Switching to PostgreSQL
+| Variable | Used by | Must be |
+| --- | --- | --- |
+| `DATABASE_URL` | the running app | pooled, if a pooler exists |
+| `DATABASE_URL_UNPOOLED` | `prisma migrate` (`directUrl`) | a direct connection |
 
-1. In `prisma/schema.prisma`, set `provider = "postgresql"`.
-2. Set `DATABASE_URL` to your Postgres connection string.
-3. `rm -rf prisma/migrations && npx prisma migrate dev --name init`
-4. `npm run db:seed && npm run jobs:daily`
+Migrations run through a transaction pooler hang, which is why `directUrl` is
+separate. Without a pooler in front of the database, set both to the same string.
 
-Two schema notes carry over:
+Two schema notes worth knowing:
 
 - Date-keyed rows use a **UTC** midnight boundary via `src/lib/dates.ts`. Using the runtime's local midnight produces a different key per timezone and silently duplicates rows.
 - `WatchlistItem` has no compound unique constraint. Its natural key spans nullable columns, and both SQLite and Postgres treat NULLs in a unique index as distinct — the constraint would never fire. Uniqueness is enforced in `src/app/watchlist/actions.ts`.
@@ -337,6 +348,43 @@ Industry
  ├── InstitutionalFlow(industry)
  └── Alerts ──── AlertStock ──── Stock
 ```
+
+---
+
+## Deploying to Vercel
+
+1. **Import the repo** at vercel.com. Do not deploy yet — the generated Prisma
+   client is gitignored, so `npm run build` runs `prisma generate` first, and
+   that reads the schema, which fails until both database URLs exist.
+2. **Create the database**: project → *Storage* → *Neon*. The integration
+   injects `DATABASE_URL` and `DATABASE_URL_UNPOOLED` into every environment,
+   which is exactly the pair the schema expects. Nothing to copy by hand.
+3. **Set the remaining env vars** under *Settings → Environment Variables*:
+   `CRON_SECRET` (any random string — Vercel sends it as
+   `Authorization: Bearer <value>` on cron invocations), plus `AI_PROVIDER` and
+   the matching API key if the brief should call a real model.
+4. **Deploy.**
+5. **Migrate and seed once.** Nothing here reads `dotenv` explicitly — the
+   scripts inherit whatever Prisma Client loads from `.env` — so the simplest
+   path is to swap the local `.env` for the production one:
+
+   ```bash
+   mv .env .env.local.bak
+   vercel env pull .env          # writes the production values
+   npx prisma migrate deploy     # create the 18 tables
+   npm run db:seed               # demo dataset
+   npm run jobs:daily            # first scores, alerts, brief
+   mv .env.local.bak .env        # put local dev back
+   ```
+
+   Add `prisma migrate deploy &&` in front of the build command in *Settings →
+   Build* if later deploys should migrate themselves. The seed only ever runs
+   this once.
+
+Thereafter the cron in `vercel.json` keeps the data fresh. On the Hobby plan
+cron fires **once per day and not at a guaranteed minute** — it lands somewhere
+inside the scheduled hour. For minute-accurate runs, run `npm run cron` on any
+always-on machine instead and drop the `crons` block.
 
 ---
 
@@ -371,6 +419,6 @@ Automated collection; AI agents monitoring industries continuously; historical b
 
 ## Stack
 
-Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · shadcn/ui · Recharts · Prisma 6 · SQLite (Postgres-ready) · node-cron
+Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · shadcn/ui · Recharts · Prisma 6 · PostgreSQL · node-cron
 
 The UI is dark-first, desktop-first, and follows the Taiwan market convention: **red is up, green is down.**

@@ -1,8 +1,6 @@
 // Taiwan Stock Industry Radar — Prisma schema
-// NOTE: Provider is sqlite for local MVP development (no external DB required).
-// The schema intentionally avoids sqlite-only features so switching
-// `provider = "postgresql"` + DATABASE_URL later is a low-friction move.
-// See README.md "Switching to PostgreSQL" for the migration steps.
+// Provider is postgresql. Local dev needs a Postgres URL too (Docker or a
+// Neon dev branch) — see README.md "Database setup".
 
 generator client {
   provider = "prisma-client-js"
@@ -10,8 +8,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection (PgBouncer). Vercel's Neon integration injects both.
+  url       = env("DATABASE_URL")
+  // Direct connection. `prisma migrate` must bypass the pooler or it hangs.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ---------------------------------------------------------------------------
