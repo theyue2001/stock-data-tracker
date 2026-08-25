@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { indicatorProviders, institutionalFlowProviders } from "@/lib/providers/registry";
 import { classifyStockTechnicals, deriveStockStatus, persistIndustryScoresForDate } from "@/lib/jobs/compute-scores";
+import { persistIndustrySentimentForDate } from "@/lib/jobs/compute-sentiment";
 import { utcDay } from "@/lib/dates";
 
 /**
@@ -10,7 +11,7 @@ import { utcDay } from "@/lib/dates";
  */
 export async function runRefreshJob(referenceDate: Date = new Date()) {
   const today = utcDay(referenceDate);
-  const summary = { indicatorValues: 0, flows: 0, breakouts: 0, statuses: 0, scores: 0 };
+  const summary = { indicatorValues: 0, flows: 0, breakouts: 0, statuses: 0, scores: 0, sentiment: 0 };
 
   // --- 1. Pull indicator providers ----------------------------------------
   for (const provider of indicatorProviders) {
@@ -97,6 +98,13 @@ export async function runRefreshJob(referenceDate: Date = new Date()) {
   // Delegated to the shared derivation so backfilled history and today's
   // score are always produced by the same formula.
   summary.scores = await persistIndustryScoresForDate(today);
+
+  // --- 5. Recompute today's industry sentiment snapshots -------------------
+  // Runs AFTER the flow writes above, since the Institutional Flow component
+  // reads the same rows step 2 just persisted. Ranking and status resolve
+  // against the previous session's snapshot, so this must also run after any
+  // backfill has established that history.
+  summary.sentiment = await persistIndustrySentimentForDate(today);
 
   return summary;
 }
