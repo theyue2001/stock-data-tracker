@@ -59,3 +59,52 @@ export interface ScoreWeights {
   technicalWeight: number;
   catalystWeight: number;
 }
+
+// ---------------------------------------------------------------------------
+// Industry Sentiment (短線氣氛) — deliberately a SEPARATE vocabulary from
+// IndustryStatus above, which describes the medium-term Industry Heat Score.
+// A single industry routinely carries one label from each set at the same
+// time (spec §10 Case A-D), so the two must never be merged.
+// ---------------------------------------------------------------------------
+
+export type SentimentStatus =
+  | "strong_cluster" // 強勢群聚
+  | "accelerating" // 加速轉強
+  | "bullish" // 多方
+  | "mild_bullish" // 中性偏多
+  | "neutral" // 中性
+  | "mild_bearish" // 中性偏空
+  | "weakening" // 轉弱
+  | "weak_cluster" // 弱勢群聚
+  | "overheated"; // 短線過熱
+
+export const SENTIMENT_STATUS_LABEL: Record<SentimentStatus, string> = {
+  strong_cluster: "強勢群聚",
+  accelerating: "加速轉強",
+  bullish: "多方",
+  mild_bullish: "中性偏多",
+  neutral: "中性",
+  mild_bearish: "中性偏空",
+  weakening: "轉弱",
+  weak_cluster: "弱勢群聚",
+  overheated: "短線過熱",
+};
+
+/** The six component scores of the Industry Sentiment Score, each 0-100. */
+export interface SentimentComponents {
+  advancingRatio: number;
+  averageReturn: number;
+  volumeExpansion: number;
+  breakoutRatio: number;
+  institutionalFlowScore: number;
+  relativeStrengthScore: number;
+}
+
+export interface SentimentWeights {
+  advancingRatioWeight: number;
+  averageReturnWeight: number;
+  volumeExpansionWeight: number;
+  breakoutRatioWeight: number;
+  institutionalFlowWeight: number;
+  relativeStrengthWeight: number;
+}
