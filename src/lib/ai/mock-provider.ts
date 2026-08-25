@@ -5,7 +5,12 @@ import type { AIBriefProvider, DailyBriefContext, DailyBriefOutput } from "@/lib
  * Rule-based, no-LLM fallback. Deterministically composes a brief from the
  * aggregated context so the Daily Brief page is always populated, even
  * with no OPENAI_API_KEY / ANTHROPIC_API_KEY configured. This is the
- * default provider for the MVP.
+ * default provider (AI_PROVIDER is unset in most deployments).
+ *
+ * "mock" names the PROSE, not the data. The numbers it quotes are whatever
+ * the pipeline stored — real exchange reports in live mode — and only the
+ * sentences around them are templated. Text here must not claim the figures
+ * are demo data; the name is a historical artefact of when they were.
  */
 export class MockAIBriefProvider implements AIBriefProvider {
   name = "mock" as const;
@@ -158,7 +163,7 @@ export class MockAIBriefProvider implements AIBriefProvider {
     ];
 
     const uncertainty = [
-      "This brief is generated from a rule-based mock-data pipeline for the MVP; indicator coverage and history length are limited.",
+      "This brief is composed by a rule-based engine, not a language model. The underlying figures come from the exchanges' own published reports, but indicator coverage and history length are limited.",
       "Industry sentiment is a single-session breadth reading. A one-day jump in sentiment or ranking is not by itself a trend, and it can reverse the next session.",
       "Institutional flow and heat scores can reverse quickly; a single-day reading is not a trend.",
       "This is investment research support, not a recommendation to buy or sell, and does not promise any return.",
