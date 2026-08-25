@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
-import type { InstitutionalFlowProvider, InstitutionalFlowResult } from "@/lib/providers/types";
+import type { InstitutionalFlowProvider, InstitutionalFlowResult, ProviderSource } from "@/lib/providers/types";
 import { randomBetween } from "@/lib/providers/mock/random-walk";
+import { utcDay } from "@/lib/dates";
 
 /**
  * Demo mock provider for foreign/trust/dealer net flow, per industry.
@@ -13,7 +14,13 @@ import { randomBetween } from "@/lib/providers/mock/random-walk";
  * property; the mock has to be built to preserve it.
  */
 export class MockInstitutionalFlowProvider implements InstitutionalFlowProvider {
-  sourceKey = "mock-flow";
+  readonly source: ProviderSource = {
+    key: "mock-flow",
+    name: "Mock Institutional Flow Generator",
+    category: "institutional_flow",
+    isMock: true,
+    description: "Synthetic foreign/trust/dealer net flow correlated with stored price action. Demo only.",
+  };
 
   async fetchLatest(): Promise<InstitutionalFlowResult[]> {
     const industries = await db.industry.findMany({
@@ -21,7 +28,20 @@ export class MockInstitutionalFlowProvider implements InstitutionalFlowProvider 
         stocks: { include: { marketData: { orderBy: { date: "desc" }, take: 21 } } },
       },
     });
-    const now = new Date();
+    // Every generated row is stamped with the session its numbers were derived
+    // from, never with wall-clock now. The derivation below reads each stock's
+    // latest stored bar, so a run on a day the exchanges have not published — a
+    // weekend, or any day after the seed's last session — would otherwise emit
+    // flow dated today that actually describes an older session. Downstream that
+    // row is invisible to persistIndustryScoresForDate and
+    // persistIndustrySentimentForDate (both filter date <= session) while the
+    // radar, which reads the newest flow row outright, shows it anyway.
+    const sessions = industries.flatMap((industry) =>
+      industry.stocks.flatMap((stock) => (stock.marketData[0] ? [stock.marketData[0].date] : [])),
+    );
+    // With nothing stored there is no session to speak of and the numbers below
+    // are pure fallback noise, so today stands in.
+    const session = sessions.length ? utcDay(sessions.reduce((a, d) => (d > a ? d : a))) : utcDay(new Date());
 
     return industries.map((industry) => {
       const latest = industry.stocks.map((s) => s.marketData[0]).filter(Boolean);
@@ -49,7 +69,7 @@ export class MockInstitutionalFlowProvider implements InstitutionalFlowProvider 
       const turnoverBase = latest.reduce((sum, m) => sum + m.close * m.volume, 0) / 1000; // NT$ thousands
 
       return {
-        date: now,
+        date: session,
         scope: "industry" as const,
         industryKey: industry.slug,
         foreignNet: Math.round(bias * randomBetween(40000, 190000)),

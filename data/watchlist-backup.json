@@ -1,0 +1,37 @@
+[
+  {
+    "itemType": "industry",
+    "industrySlug": "memory",
+    "note": "Monitoring for capital-flow confirmation."
+  },
+  {
+    "itemType": "industry",
+    "industrySlug": "cooling",
+    "note": "Monitoring for capital-flow confirmation."
+  },
+  {
+    "itemType": "industry",
+    "industrySlug": "optical-communication",
+    "note": "Monitoring for capital-flow confirmation."
+  },
+  {
+    "itemType": "stock",
+    "ticker": "2408",
+    "note": null
+  },
+  {
+    "itemType": "stock",
+    "ticker": "2382",
+    "note": null
+  },
+  {
+    "itemType": "stock",
+    "ticker": "3017",
+    "note": null
+  },
+  {
+    "itemType": "stock",
+    "ticker": "4979",
+    "note": null
+  }
+]

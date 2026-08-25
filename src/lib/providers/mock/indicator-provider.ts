@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import type { IndicatorProvider, IndicatorResult } from "@/lib/providers/types";
+import type { IndicatorProvider, IndicatorResult, ProviderSource } from "@/lib/providers/types";
 import { randomWalkStep } from "@/lib/providers/mock/random-walk";
 
 /**
@@ -9,7 +9,13 @@ import { randomWalkStep } from "@/lib/providers/mock/random-walk";
  * without touching any consuming code.
  */
 export class MockIndicatorProvider implements IndicatorProvider {
-  sourceKey = "mock-indicator-walker";
+  readonly source: ProviderSource = {
+    key: "mock-indicator",
+    name: "Mock Leading Indicator Generator",
+    category: "indicator",
+    isMock: true,
+    description: "Synthetic random walk over the stored indicator series. Demo only — never enabled in live mode.",
+  };
 
   async fetchLatest(): Promise<IndicatorResult[]> {
     const indicators = await db.indicator.findMany({

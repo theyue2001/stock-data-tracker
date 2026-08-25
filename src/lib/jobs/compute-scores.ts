@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { getActiveScoreWeights } from "@/lib/score-weights";
 import { classifyIndustryStatus, computeHeatScore } from "@/lib/scoring";
-import { utcDay, utcDayOffset } from "@/lib/dates";
+import { utcDateKey, utcDay, utcDayOffset } from "@/lib/dates";
 import type { ScoreComponents, ScoreWeights } from "@/lib/types";
 
 /**
@@ -19,6 +19,59 @@ import type { ScoreComponents, ScoreWeights } from "@/lib/types";
 const CATALYST_WINDOW_DAYS = 21;
 const TECHNICAL_LOOKBACK = 25;
 const RS_LOOKBACK = 60;
+
+/**
+ * Readings per year for each Indicator.frequency, used to annualize a
+ * per-period move so series sampled at different rates can be averaged. Trading
+ * days rather than calendar days for "daily", since these feeds only publish on
+ * sessions.
+ */
+const PERIODS_PER_YEAR: Record<string, number> = { daily: 252, weekly: 52, monthly: 12, quarterly: 4 };
+
+/**
+ * Annualized percent move that should read as a strong (~88) leading-indicator
+ * score. 60%/yr is deliberately high: these are demand and pricing proxies in
+ * cyclical hardware supply chains, where a genuine upcycle moves freight rates
+ * or memory contract prices by tens of percent a year, and a scale tight enough
+ * to make a 10%/yr drift look decisive would put every series in an upcycle at
+ * the ceiling together.
+ */
+const LEADING_INDICATOR_SCALE = 60;
+
+/**
+ * Where the catalyst curve is centred, in recency-weighted points per member
+ * stock accumulated over the whole window. Derived from the real MOPS filing
+ * volume, the only thing that can pin it down: on a sampled session the feed
+ * carried filings for 10 of the 55 tracked stocks once same-day multi-document
+ * filings are collapsed (~0.18 filers per name per session), and the 21-day
+ * window holds ~15 sessions whose recency weights sum to ~7.7 — so a typical
+ * name accrues ~1.4 recency-weighted filings.
+ *
+ * Those filings have to be priced at the weight the feed ACTUALLY delivers,
+ * not at the "medium" weight. A sampled pull of the live 重大訊息 feed against
+ * the tracked roster returns 0 high / 2 medium / 13 low, a mean weight of
+ * (2*18 + 13*9) / 15 = 10.2 — so ~1.4 filings is ~14 points, not the ~25 that
+ * pricing them all as medium implies. Centring on 25 does not merely shift the
+ * curve: at 14 points of real signal it puts every industry at
+ * squash(14 - 25, 30) = 33, under the 30 floor's shadow, which makes the
+ * component a near-constant again — the same defect as before, mirrored to the
+ * bottom of the range instead of the top.
+ *
+ * The reference weight therefore tracks the importance mapping in
+ * src/lib/providers/live/catalyst-provider.ts, and retuning that mapping means
+ * re-sampling the mix and revisiting this number. That coupling is real and
+ * cannot be designed away by choosing a fixed reference weight.
+ *
+ * The scale keeps the ~1.2x scale-to-midpoint ratio of the first calibration,
+ * which leaves a normal month of filings reading in the fifties and needs
+ * roughly triple-normal intensity to reach the high nineties. The original
+ * numbers (midpoint 18 on the un-normalized industry total) were fitted to the
+ * seeded sample of 1-2 catalysts per industry per window; the live feed
+ * delivers that much in a single session, which pinned every industry with any
+ * filing at all to ~100.
+ */
+const CATALYST_MIDPOINT_POINTS = 14;
+const CATALYST_POINTS_SCALE = 17;
 
 /**
  * Maps an unbounded signal onto 0-100 centred on 50.
@@ -56,7 +109,7 @@ export async function computeIndustryScoresForDate(
       flows: {
         where: { scope: "industry", date: { lte: asOf } },
         orderBy: { date: "desc" },
-        take: 5,
+        take: 1,
       },
       catalysts: { where: { date: { lte: asOf, gte: utcDayOffset(asOf, CATALYST_WINDOW_DAYS) } } },
       stocks: {
@@ -84,7 +137,14 @@ export async function computeIndustryScoresForDate(
   // so it needs a cross-industry pass before any single score is final.
   const flowTotals = industries.map((ind) => {
     const f = ind.flows[0];
-    return f ? f.foreignNet + f.trustNet : 0;
+    // Only a row actually dated to the session being scored counts, which is
+    // the same check compute-sentiment's flowIsCurrent makes before it reports
+    // a flow figure. The T86 report can be missing or dated a session behind
+    // the price snapshot it is aggregated against, and without this the newest
+    // stored row — yesterday's — would be scored as today's net buying, while
+    // the sentiment snapshot for the same date correctly says there is none.
+    if (!f || utcDateKey(f.date) !== utcDateKey(asOf)) return 0;
+    return f.foreignNet + f.trustNet;
   });
   const flowMax = Math.max(1, ...flowTotals.map(Math.abs));
 
@@ -102,6 +162,15 @@ export async function computeIndustryScoresForDate(
     // Measured PER PERIOD, not cumulatively across the window: a cumulative
     // figure grows with however many readings happen to be stored, so the
     // score would drift purely from history length.
+    //
+    // Then ANNUALIZED before scoring, because a per-period move is not
+    // comparable across the frequencies this taxonomy mixes: 2% a week and 2%
+    // a quarter are the same number and eight times apart in meaning. Averaging
+    // them raw let the fastest-sampled series dominate an industry's reading,
+    // and pinned any quarterly series with real growth to the ceiling — the
+    // hyperscaler capex series compounds ~26% a quarter, which the old
+    // per-period scale of 3 mapped to exactly 100.0 every session, making the
+    // component a constant for that industry.
     const momenta = ind.indicators
       .map((indicator) => {
         const vals = indicator.values;
@@ -110,11 +179,12 @@ export async function computeIndustryScoresForDate(
         if (oldest.value === 0) return null;
         const pctMove = ((vals[0].value - oldest.value) / oldest.value) * 100;
         const perPeriod = pctMove / (vals.length - 1);
+        const annualized = perPeriod * (PERIODS_PER_YEAR[indicator.frequency] ?? PERIODS_PER_YEAR.weekly);
         // A rising inventory or capacity figure is bearish, so invert it.
-        return indicator.higherIsBetter ? perPeriod : -perPeriod;
+        return indicator.higherIsBetter ? annualized : -annualized;
       })
       .filter((v): v is number => v !== null);
-    const leadingIndicatorScore = squash(avg(momenta), 3);
+    const leadingIndicatorScore = squash(avg(momenta), LEADING_INDICATOR_SCALE);
 
     // --- Capital flow: normalized net institutional buying ----------------
     // Already bounded to -1..1 by the cross-industry normalization, so a
@@ -132,16 +202,43 @@ export async function computeIndustryScoresForDate(
     // is beating the index"; both contribute, neither alone saturates it.
     const technicalScore = squash((upShare - 0.5) * 30 + (avgRS - 100), 18);
 
-    // --- Catalyst: recency- and importance-weighted ------------------------
-    const catalystPoints = ind.catalysts.reduce((sum, c) => {
+    // --- Catalyst: recency- and importance-weighted news intensity ---------
+    // Only the heaviest filing a company made on a session counts. MOPS
+    // routinely splits one event across several documents — a parent filing
+    // separately on behalf of two subsidiaries, a 補充公告 amending an earlier
+    // notice — and adding those up reads a single event as a news cluster.
+    const heaviestPerFilerDay = new Map<string, number>();
+    // A catalyst attached to the industry rather than to a member company is
+    // already a statement about the whole group, so it is accumulated raw
+    // instead of being divided down per name below.
+    let groupPoints = 0;
+    for (const c of ind.catalysts) {
       const ageDays = (asOf.getTime() - c.date.getTime()) / 86_400_000;
       const recency = Math.max(0, 1 - ageDays / CATALYST_WINDOW_DAYS);
       const weight = c.importance === "high" ? 30 : c.importance === "medium" ? 18 : 9;
-      return sum + weight * recency;
-    }, 0);
+      if (!c.stockId) {
+        groupPoints += weight * recency;
+        continue;
+      }
+      const filerDay = `${c.stockId}|${utcDateKey(c.date)}`;
+      heaviestPerFilerDay.set(filerDay, Math.max(heaviestPerFilerDay.get(filerDay) ?? 0, weight * recency));
+    }
+    // Company filings are scored PER MEMBER NAME. A raw window total grows with
+    // how many tickers the industry happens to have on the tracked list and
+    // with how many sessions the calendar window happens to contain, so the
+    // ranking such a total produces is mostly roster size and holiday
+    // placement rather than news.
+    const filingPoints =
+      [...heaviestPerFilerDay.values()].reduce((sum, p) => sum + p, 0) / Math.max(1, ind.stocks.length);
     // No catalysts means "nothing notable", which is a neutral-to-low 30 —
-    // not a zero, since absence of news is not bearish evidence.
-    const catalystScore = catalystPoints === 0 ? 30 : squash(catalystPoints - 18, 22);
+    // not a zero, since absence of news is not bearish evidence. A floor
+    // rather than a special case for exactly zero, because a thin month of
+    // filings is not bearish evidence either: a discontinuity there would rank
+    // a silent industry above one that managed a single minor filing.
+    const catalystScore = Math.max(
+      30,
+      squash(filingPoints + groupPoints - CATALYST_MIDPOINT_POINTS, CATALYST_POINTS_SCALE),
+    );
 
     const components: ScoreComponents = {
       fundamentalScore: round1(fundamentalScore),
