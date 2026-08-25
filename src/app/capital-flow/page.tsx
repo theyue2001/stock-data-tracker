@@ -3,12 +3,12 @@ import { getCapitalFlow } from "@/lib/queries";
 import { getIndustryMomentum } from "@/lib/sentiment-queries";
 import { compact, pct } from "@/lib/format";
 import { KpiStrip } from "@/components/radar/kpi-strip";
+import { PageHeader, PageShell, ScrollHint } from "@/components/layout/page";
+import { Panel } from "@/components/radar/panel";
 import { StatusChip } from "@/components/radar/status-chip";
 import { RankChange } from "@/components/sentiment/rank-change";
 import { directionColor, tint, yiFlow } from "@/lib/radar-ui";
 import { SENTIMENT_STATUS_BADGE, sentimentTextColor } from "@/lib/sentiment-ui";
-
-export const dynamic = "force-dynamic";
 
 const COLUMNS = "104px 96px 84px 84px 84px 84px 68px 84px minmax(190px,1fr)";
 
@@ -41,6 +41,10 @@ export default async function CapitalFlowPage() {
   const maxTrust = Math.max(1, ...rows.map((r) => Math.abs(r.trustNet)));
   const maxDealer = Math.max(1, ...rows.map((r) => Math.abs(r.dealerNet)));
   const maxMargin = Math.max(1, ...rows.map((r) => Math.abs(r.marginChange)));
+  // Industry-scope margin is only ever non-zero when a provider actually
+  // supplied an NT$ figure. All-zero means "not published", and the tint scale
+  // below would otherwise render a meaningless uniform wash.
+  const marginPublished = rows.some((r) => r.marginChange !== 0);
   const maxVol = Math.max(1, ...rows.map((r) => Math.abs(r.volumeChangePct)));
   const maxD5 = Math.max(1, ...rows.map((r) => Math.abs(r.d5)));
 
@@ -53,12 +57,12 @@ export default async function CapitalFlowPage() {
   const outflow3 = byD5.filter((f) => f.d5 < 0).slice(-3).reverse();
 
   return (
-    <div className="px-6 pb-6">
-      <div className="flex flex-wrap items-baseline gap-3.5 py-[18px]">
-        <h1 className="text-[22px] font-black">資金流向</h1>
-        <span className="text-[11px] font-medium text-[var(--rd-text-secondary)]">法人 × 產業 · 看見資金正在離開誰、進入誰</span>
-        <span className="ml-auto font-mono text-[10px] text-[var(--rd-text-muted)]">單位：億元 · 收盤更新</span>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="資金流向"
+        note="單位：億元 · 收盤更新"
+        subtitle="法人 × 產業 · 看見資金正在離開誰、進入誰"
+      />
 
       {flow.market && (
         <KpiStrip
@@ -104,16 +108,15 @@ export default async function CapitalFlowPage() {
         />
       )}
 
-      <div className="rd-rule flex items-baseline gap-2.5 pt-2.5" style={{ marginTop: 18 }}>
-        <span className="text-[13px] font-bold">產業資金熱圖</span>
-        <span className="font-mono text-[9px] tracking-[.16em] text-[var(--rd-text-muted)]">FLOW HEATMAP</span>
-        <span className="ml-auto text-[10px] text-[var(--rd-text-muted)]">紅＝買超/流入 · 綠＝賣超/流出 · 氣氛＝短線廣度 0–100 · 點產業名開細節</span>
-      </div>
-
-      <div className="scrollbar-thin overflow-x-auto">
-        <div style={{ minWidth: 1010 }}>
+      <div className="mt-3 sm:mt-4">
+      <Panel
+        title="產業資金熱圖"
+        kicker="FLOW HEATMAP"
+        note="紅＝買超/流入 · 綠＝賣超/流出 · 氣氛＝短線廣度 0–100 · 點產業名開細節"
+      >
+        <ScrollHint minWidth={1010}>
           <div
-            className="grid items-center py-2.5 pb-[7px] text-[10px] font-medium text-[var(--rd-text-muted)]"
+            className="grid items-center pb-[7px] text-[10px] font-medium text-[var(--rd-text-muted)]"
             style={{ gridTemplateColumns: COLUMNS, columnGap: 6, borderBottom: "1px solid var(--rd-rule)" }}
           >
             <span>產業</span>
@@ -130,7 +133,9 @@ export default async function CapitalFlowPage() {
             const fa = tint(f.foreignNet, maxForeign);
             const ta = tint(f.trustNet, maxTrust);
             const da = tint(f.dealerNet, maxDealer);
-            const mg = tint(f.marginChange, maxMargin);
+            // No tint when the column has nothing to show, or every row gets the
+            // same faint wash and it reads as data.
+            const mg = marginPublished ? tint(f.marginChange, maxMargin) : { bg: "transparent", color: "rgba(243,242,242,.4)" };
             const ve = tint(f.volumeChangePct, maxVol);
             const half = Math.min(Math.abs(f.d5) / maxD5, 1) * 100;
             return (
@@ -169,7 +174,12 @@ export default async function CapitalFlowPage() {
                   {yiFlow(f.dealerNet)}
                 </span>
                 <span className="tnum py-[7px] px-2 text-right text-[11.5px] font-semibold" style={{ background: mg.bg, color: mg.color }}>
-                  {yiFlow(f.marginChange)}
+                  {/* Neither exchange publishes a per-stock margin LOAN amount — only a
+                      balance in 張 — so writeStockFlows deliberately stores nothing here
+                      rather than valuing share counts at the close, which would be off by
+                      0.4x-2.6x and sometimes the wrong sign. An em dash says "not
+                      published"; a 0 would read as "no change". */}
+                  {marginPublished ? yiFlow(f.marginChange) : "—"}
                 </span>
                 <span className="tnum py-[7px] px-2 text-right text-[11.5px] font-semibold text-[rgba(243,242,242,.55)]">
                   {compact(f.turnover * 1000)}
@@ -192,13 +202,14 @@ export default async function CapitalFlowPage() {
               </div>
             );
           })}
-        </div>
+        </ScrollHint>
+      </Panel>
       </div>
 
       {(confirmedRotation.length > 0 || unconfirmedInflow.length > 0) && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 18, borderTop: "2px solid var(--rd-rule)", paddingTop: 14 }}>
-          <div className="p-3.5" style={{ border: "1px solid rgba(255,86,60,.5)", background: "rgba(255,86,60,.07)" }}>
-            <div className="text-[10px] font-medium" style={{ color: "#ff8a70" }}>
+        <div className="mt-3 grid gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-2">
+          <div className="rd-card p-3 sm:p-3.5" style={{ borderColor: "rgba(255,86,60,.5)", background: "rgba(255,86,60,.07)" }}>
+            <div className="text-[10.5px] font-semibold" style={{ color: "#ff8a70" }}>
               資金流入 × 氣氛排名同步上升
             </div>
             <div className="mt-2 flex flex-col gap-1.5">
@@ -216,8 +227,8 @@ export default async function CapitalFlowPage() {
               )}
             </div>
           </div>
-          <div className="p-3.5" style={{ border: "1px solid rgba(230,178,58,.45)" }}>
-            <div className="text-[10px] font-medium" style={{ color: "#e6c26a" }}>
+          <div className="rd-card p-3 sm:p-3.5" style={{ borderColor: "rgba(230,178,58,.45)" }}>
+            <div className="text-[10.5px] font-semibold" style={{ color: "#e6c26a" }}>
               資金流入但族群未同步（氣氛值 &lt; 50）
             </div>
             <div className="mt-2 flex flex-col gap-1.5">
@@ -242,38 +253,60 @@ export default async function CapitalFlowPage() {
         </div>
       )}
 
-      <div className="grid items-stretch gap-4" style={{ gridTemplateColumns: "1fr auto 1fr", marginTop: 18, borderTop: "2px solid var(--rd-rule)", paddingTop: 14 }}>
-        <div className="p-3.5" style={{ border: "1px solid rgba(61,174,124,.4)" }}>
-          <div className="text-[10px] font-medium" style={{ color: "#3dae7c" }}>
-            資金流出（5 日累計）
-          </div>
-          <div className="mt-2 flex flex-wrap gap-4.5">
-            {outflow3.map((f) => (
-              <span key={f.id} className="text-[13px] font-semibold">
-                {f.nameZh ?? f.name} <span style={{ color: "#6cc79d" }}>{yiFlow(f.d5)} 億</span>
+      <div className="mt-3 sm:mt-4">
+        <Panel title="資金重新分配" kicker="5-DAY ROTATION" note="5 日累計法人買賣超">
+          <div className="flex flex-col items-stretch gap-2.5 lg:flex-row lg:items-center">
+            <div className="rd-card min-w-0 flex-1 p-3 sm:p-3.5" style={{ borderColor: "rgba(61,174,124,.4)" }}>
+              <div className="text-[10.5px] font-semibold" style={{ color: "#3dae7c" }}>
+                資金流出
+              </div>
+              <div className="mt-1.5 flex flex-col gap-1">
+                {outflow3.length ? (
+                  outflow3.map((f) => (
+                    <Link key={f.id} href={`/industries/${f.slug}`} className="flex items-baseline gap-2 text-[var(--rd-text)]">
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{f.nameZh ?? f.name}</span>
+                      <span className="tnum shrink-0 text-[12px] font-bold" style={{ color: "#6cc79d" }}>
+                        {yiFlow(f.d5)} 億
+                      </span>
+                    </Link>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-[var(--rd-text-muted)]">近 5 日無淨流出的產業。</span>
+                )}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-row items-center justify-center gap-2 lg:flex-col lg:gap-1 lg:px-1.5">
+              <span className="text-[18px] font-extrabold lg:text-[20px]" style={{ color: "#ff5a3d" }}>
+                <span className="lg:hidden">↓</span>
+                <span className="hidden lg:inline">→</span>
               </span>
-            ))}
+              <span className="text-center text-[9.5px] font-medium text-[var(--rd-text-muted)]">法人資金重新分配</span>
+            </div>
+            <div
+              className="rd-card min-w-0 flex-1 p-3 sm:p-3.5"
+              style={{ borderColor: "rgba(255,86,60,.5)", background: "rgba(255,86,60,.07)" }}
+            >
+              <div className="text-[10.5px] font-semibold" style={{ color: "#ff8a70" }}>
+                資金流入
+              </div>
+              <div className="mt-1.5 flex flex-col gap-1">
+                {inflow3.length ? (
+                  inflow3.map((f) => (
+                    <Link key={f.id} href={`/industries/${f.slug}`} className="flex items-baseline gap-2 text-[var(--rd-text)]">
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{f.nameZh ?? f.name}</span>
+                      <span className="tnum shrink-0 text-[12px] font-bold" style={{ color: "#ff5a3d" }}>
+                        {yiFlow(f.d5)} 億
+                      </span>
+                    </Link>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-[var(--rd-text-muted)]">近 5 日無淨流入的產業。</span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col items-center justify-center gap-1 px-1.5">
-          <span className="text-[20px] font-extrabold" style={{ color: "#ff5a3d" }}>
-            →
-          </span>
-          <span className="text-center text-[9.5px] font-medium text-[var(--rd-text-muted)]">法人資金重新分配</span>
-        </div>
-        <div className="p-3.5" style={{ border: "1px solid rgba(255,86,60,.5)", background: "rgba(255,86,60,.07)" }}>
-          <div className="text-[10px] font-medium" style={{ color: "#ff8a70" }}>
-            資金流入（5 日累計）
-          </div>
-          <div className="mt-2 flex flex-wrap gap-4.5">
-            {inflow3.map((f) => (
-              <span key={f.id} className="text-[13px] font-semibold">
-                {f.nameZh ?? f.name} <span style={{ color: "#ff5a3d" }}>{yiFlow(f.d5)} 億</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        </Panel>
       </div>
-    </div>
+    </PageShell>
   );
 }

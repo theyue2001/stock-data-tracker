@@ -2,8 +2,6 @@ import { IndustryRadarView } from "@/components/industries/industry-radar-view";
 import { getIndustryRadar, getWatchlistKeys } from "@/lib/queries";
 import { getIndustryMomentum } from "@/lib/sentiment-queries";
 
-export const dynamic = "force-dynamic";
-
 export default async function IndustriesPage() {
   const [rows, watchKeys, momentum] = await Promise.all([
     getIndustryRadar(),

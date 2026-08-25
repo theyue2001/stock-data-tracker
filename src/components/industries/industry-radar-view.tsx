@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { FilterChip } from "@/components/radar/filter-chip";
+import { PageHeader, PageShell } from "@/components/layout/page";
 import { IndustryCard } from "@/components/industries/industry-card";
 import type { IndustryRadarRow } from "@/lib/queries";
 import type { IndustryStatus } from "@/lib/types";
@@ -60,24 +61,28 @@ export function IndustryRadarView({
   }, [ranked, status, sort, sentimentById]);
 
   return (
-    <div className="px-6 pb-6">
-      <div className="flex flex-wrap items-baseline gap-3.5 py-[18px]">
-        <h1 className="text-[22px] font-black">產業雷達</h1>
-        <span className="text-[11px] font-medium text-[var(--rd-text-secondary)]">{rows.length} 個產業 · 2–3 秒讀懂一張卡</span>
-        <span className="ml-auto font-mono text-[10px] text-[var(--rd-text-muted)]">HEAT 0–100</span>
+    <PageShell>
+      <PageHeader title="產業雷達" note="HEAT 0–100" subtitle={`${rows.length} 個產業 · 2–3 秒讀懂一張卡`} />
+
+      {/* Filters get their own box. On a phone they wrap to three or four rows,
+          and without an edge around them they read as page content rather than
+          as the control that changes what is below. */}
+      <div className="rd-card rd-card-body mb-3 flex flex-col gap-2.5 sm:mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-medium text-[var(--rd-text-muted)]">狀態</span>
+          {STATUS_FILTERS.map((f) => (
+            <FilterChip key={f.value} label={f.label} active={status === f.value} onClick={() => setStatus(f.value)} />
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-medium text-[var(--rd-text-muted)]">排序</span>
+          <FilterChip label="依熱度" active={sort === "heat"} onClick={() => setSort("heat")} />
+          <FilterChip label="依排名變化" active={sort === "delta"} onClick={() => setSort("delta")} />
+          <FilterChip label="依短線氣氛" active={sort === "sentiment"} onClick={() => setSort("sentiment")} />
+        </div>
       </div>
 
-      <div className="rd-rule flex flex-wrap items-center gap-2 py-3">
-        {STATUS_FILTERS.map((f) => (
-          <FilterChip key={f.value} label={f.label} active={status === f.value} onClick={() => setStatus(f.value)} />
-        ))}
-        <span className="ml-auto text-[10px] font-medium text-[var(--rd-text-muted)]">排序</span>
-        <FilterChip label="依熱度" active={sort === "heat"} onClick={() => setSort("heat")} />
-        <FilterChip label="依排名變化" active={sort === "delta"} onClick={() => setSort("delta")} />
-        <FilterChip label="依短線氣氛" active={sort === "sentiment"} onClick={() => setSort("sentiment")} />
-      </div>
-
-      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-3.5 xl:grid-cols-3">
         {filtered.map(({ row, rank, rankDelta }) => (
           <IndustryCard
             key={row.id}
@@ -91,6 +96,6 @@ export function IndustryRadarView({
       </div>
 
       {filtered.length === 0 && <p className="py-10 text-center text-[12px] text-[var(--rd-text-secondary)]">沒有符合篩選條件的產業。</p>}
-    </div>
+    </PageShell>
   );
 }

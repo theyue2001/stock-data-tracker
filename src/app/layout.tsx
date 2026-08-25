@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Archivo, IBM_Plex_Mono, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
-import { MobileNav, SideNav } from "@/components/layout/nav";
+import { Suspense } from "react";
+import { MobileNav, MobileNavFallback, SideNav, SideNavFallback } from "@/components/layout/nav";
+import { FooterDate } from "@/components/layout/footer-date";
 
 const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700", "800", "900"] });
 const notoTC = Noto_Sans_TC({ variable: "--font-noto-tc", subsets: ["latin"], display: "swap", weight: ["400", "500", "700", "900"] });
@@ -14,16 +16,16 @@ export const metadata: Metadata = {
     "Investment research dashboard for tracking capital rotation, strengthening industries, and leading indicators across Taiwan-listed equities.",
 };
 
-function todayFooterLabel(): { date: string; day: string } {
-  const now = new Date();
-  const date = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
-  const day = now.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
-  return { date, day };
-}
+/** The shell forces `.dark`, so declare it: without `colorScheme` a mobile
+ *  browser paints its own chrome light and form controls render for a light
+ *  page. `themeColor` matches --rd-bg so the address bar continues the app's
+ *  own background instead of framing it. */
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#171514",
+};
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  const { date, day } = todayFooterLabel();
-
   return (
     <html
       lang="zh-Hant"
@@ -44,17 +46,29 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <div className="mt-[3px] font-mono text-[8.5px] tracking-[.22em] text-[rgba(243,242,242,.4)]">INDUSTRY RADAR</div>
             </Link>
             <div className="scrollbar-thin flex-1 overflow-y-auto">
-              <SideNav />
+              <Suspense fallback={<SideNavFallback />}>
+                <SideNav />
+              </Suspense>
             </div>
             <div className="px-4 py-3.5 font-mono text-[10px] leading-[1.8] text-[rgba(243,242,242,.45)]" style={{ borderTop: "1px solid rgba(243,242,242,.14)" }}>
-              {date} {day}
-              <br />
-              收盤資料 · 20:00 更新
+              <FooterDate />
             </div>
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <MobileNav />
+            {/* Mobile chrome: the sidebar is hidden below `lg`, so the app's
+                identity and its nav have to live here — and stay put while a
+                long table scrolls, the way an app's tab bar does. */}
+            <div className="sticky top-0 z-30 bg-[var(--rd-panel)] lg:hidden" style={{ borderBottom: "1px solid var(--rd-line)" }}>
+              <Link href="/" className="flex items-center gap-2 px-4 py-2.5">
+                <span className="h-3 w-3 shrink-0 bg-[var(--rd-accent)]" />
+                <span className="text-[14px] leading-none font-black tracking-[.04em]">台股產業雷達</span>
+                <span className="ml-auto font-mono text-[8.5px] tracking-[.18em] text-[rgba(243,242,242,.4)]">INDUSTRY RADAR</span>
+              </Link>
+              <Suspense fallback={<MobileNavFallback />}>
+                <MobileNav />
+              </Suspense>
+            </div>
             <main className="min-w-0 flex-1 bg-[var(--rd-bg)] text-[var(--rd-text)]">{children}</main>
           </div>
         </div>
