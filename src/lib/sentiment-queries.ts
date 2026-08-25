@@ -1,4 +1,6 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/lib/db";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 import { getRankedSubIndustrySentiment } from "@/lib/jobs/compute-sentiment";
 import { classifyQuadrant, type SentimentHeatQuadrant } from "@/lib/sentiment";
 import type { SentimentComponents, SentimentStatus } from "@/lib/types";
@@ -110,11 +112,27 @@ export interface IndustryMomentum {
  * from the same price series (see compute-sentiment.ts for why).
  */
 export async function getIndustryMomentum(): Promise<IndustryMomentum> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
+  return loadIndustryMomentum();
+}
+
+/**
+ * The same read, uncached.
+ *
+ * `"use cache"` and `cacheLife()` only work inside the Next.js server runtime,
+ * so a cached function throws when called from a plain `tsx` job script — which
+ * is exactly what the daily brief job is. Pages call the cached wrapper above;
+ * jobs call this. Splitting them keeps one implementation of the query rather
+ * than letting the brief drift away from what the UI shows.
+ */
+export async function loadIndustryMomentum(): Promise<IndustryMomentum> {
   const latest = await db.industrySentimentSnapshot.findFirst({ orderBy: { date: "desc" }, select: { date: true } });
   if (!latest) return { date: null, industries: [], subIndustries: [] };
 
   const [industries, subIndustries] = await Promise.all([
-    getIndustrySentimentRows(latest.date),
+    loadIndustrySentimentRows(latest.date),
     getRankedSubIndustrySentiment(latest.date),
   ]);
 
@@ -154,6 +172,14 @@ export async function getIndustryMomentum(): Promise<IndustryMomentum> {
 
 /** Industry sentiment rows for one session, ordered best-to-worst by rank. */
 export async function getIndustrySentimentRows(date: Date): Promise<IndustrySentimentRow[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
+  return loadIndustrySentimentRows(date);
+}
+
+/** Uncached counterpart, for job scripts. See loadIndustryMomentum. */
+export async function loadIndustrySentimentRows(date: Date): Promise<IndustrySentimentRow[]> {
   const snapshots = await db.industrySentimentSnapshot.findMany({
     where: { date },
     orderBy: { rank: "asc" },
@@ -233,6 +259,9 @@ export interface IndustrySentimentPanel extends IndustrySentimentRow {
  *  snapshot exists yet, so the page can show a "run the job" hint rather than
  *  invented zeros. */
 export async function getIndustrySentimentPanel(slug: string): Promise<IndustrySentimentPanel | null> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
   const industry = await db.industry.findUnique({ where: { slug }, select: { id: true } });
   if (!industry) return null;
 
@@ -274,12 +303,20 @@ export interface SentimentBriefHighlights {
  * rule all agree on what "fastest rising" means.
  */
 export async function getSentimentBriefHighlights(limit = 3): Promise<SentimentBriefHighlights> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
+  return loadSentimentBriefHighlights(limit);
+}
+
+/** Uncached counterpart, for job scripts. See loadIndustryMomentum. */
+export async function loadSentimentBriefHighlights(limit = 3): Promise<SentimentBriefHighlights> {
   const latest = await db.industrySentimentSnapshot.findFirst({ orderBy: { date: "desc" }, select: { date: true } });
   if (!latest) {
     return { date: null, fastestRising: [], fastestFalling: [], biggestRankJumps: [], strongClusters: [], overheated: [] };
   }
 
-  const rows = await getIndustrySentimentRows(latest.date);
+  const rows = await loadIndustrySentimentRows(latest.date);
 
   return {
     date: latest.date.toISOString().slice(0, 10),

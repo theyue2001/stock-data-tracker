@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { updateTag } from "next/cache";
 import { db } from "@/lib/db";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 /**
  * Watchlist mutations. Currently global (single implicit user) — the MVP has no
@@ -34,8 +35,7 @@ export async function addWatchlistItem(formData: FormData) {
 
   await db.watchlistItem.create({ data: { itemType, ...key } });
 
-  revalidatePath("/watchlist");
-  revalidatePath("/");
+  updateTag(CACHE_TAGS.watchlist);
 }
 
 export async function removeWatchlistItem(formData: FormData) {
@@ -44,8 +44,7 @@ export async function removeWatchlistItem(formData: FormData) {
 
   await db.watchlistItem.deleteMany({ where: { id } });
 
-  revalidatePath("/watchlist");
-  revalidatePath("/");
+  updateTag(CACHE_TAGS.watchlist);
 }
 
 /**
@@ -72,5 +71,5 @@ export async function toggleWatchlistItem(itemType: "industry" | "stock" | "indi
     await db.watchlistItem.create({ data: { itemType, ...key } });
   }
 
-  revalidatePath("/", "layout");
+  updateTag(CACHE_TAGS.watchlist);
 }

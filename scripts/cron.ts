@@ -9,6 +9,7 @@ import cron from "node-cron";
 import { runRefreshJob } from "../src/lib/jobs/refresh-data";
 import { runAlertEngine } from "../src/lib/jobs/generate-alerts";
 import { runDailyBriefJob } from "../src/lib/jobs/generate-daily-brief";
+import { revalidateDeployedCache } from "./_revalidate";
 
 const SCHEDULE = process.env.CRON_SCHEDULE || "0 20 * * 1-5";
 const TIMEZONE = process.env.CRON_TIMEZONE || "Asia/Taipei";
@@ -21,6 +22,9 @@ async function runPipeline() {
     console.log(`[cron] alerts: ${await runAlertEngine()} new`);
     const brief = await runDailyBriefJob();
     console.log(`[cron] brief generated via ${brief.generatedBy}`);
+    // Inside the try: a failed pipeline must not tell the dashboard to
+    // re-render from data that was never finished being written.
+    await revalidateDeployedCache("cron");
   } catch (err) {
     console.error("[cron] pipeline failed:", err);
   }
