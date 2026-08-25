@@ -5,6 +5,7 @@ import { FilterChip } from "@/components/radar/filter-chip";
 import { IndustryCard } from "@/components/industries/industry-card";
 import type { IndustryRadarRow } from "@/lib/queries";
 import type { IndustryStatus } from "@/lib/types";
+import type { CardSentiment } from "@/components/industries/industry-card";
 
 // The handoff's filter set is 全部/加速中/轉強/早期轉強/盤整/過熱/轉弱, but
 // IndustryStatus (src/lib/types.ts) only models 5 states — there is no
@@ -22,9 +23,20 @@ const STATUS_FILTERS: Array<{ value: IndustryStatus | "all"; label: string }> = 
   { value: "weakening", label: "轉弱" },
 ];
 
-type SortMode = "heat" | "delta";
+type SortMode = "heat" | "delta" | "sentiment";
 
-export function IndustryRadarView({ rows, watchedIds }: { rows: IndustryRadarRow[]; watchedIds: Set<string> }) {
+export function IndustryRadarView({
+  rows,
+  watchedIds,
+  sentimentById,
+}: {
+  rows: IndustryRadarRow[];
+  watchedIds: Set<string>;
+  /** Short-term sentiment per industry id. Empty until the sentiment job has
+   *  run at least once — cards then simply omit the 氣氛 line rather than
+   *  showing a fabricated zero. */
+  sentimentById: Record<string, CardSentiment>;
+}) {
   const [status, setStatus] = useState<IndustryStatus | "all">("all");
   const [sort, setSort] = useState<SortMode>("heat");
 
@@ -39,8 +51,13 @@ export function IndustryRadarView({ rows, watchedIds }: { rows: IndustryRadarRow
   const filtered = useMemo(() => {
     const subset = status === "all" ? ranked : ranked.filter((r) => r.row.status === status);
     if (sort === "delta") return [...subset].sort((a, b) => Math.abs(b.rankDelta) - Math.abs(a.rankDelta));
+    if (sort === "sentiment") {
+      return [...subset].sort(
+        (a, b) => (sentimentById[b.row.id]?.score ?? -1) - (sentimentById[a.row.id]?.score ?? -1),
+      );
+    }
     return subset;
-  }, [ranked, status, sort]);
+  }, [ranked, status, sort, sentimentById]);
 
   return (
     <div className="px-6 pb-6">
@@ -57,11 +74,19 @@ export function IndustryRadarView({ rows, watchedIds }: { rows: IndustryRadarRow
         <span className="ml-auto text-[10px] font-medium text-[var(--rd-text-muted)]">排序</span>
         <FilterChip label="依熱度" active={sort === "heat"} onClick={() => setSort("heat")} />
         <FilterChip label="依排名變化" active={sort === "delta"} onClick={() => setSort("delta")} />
+        <FilterChip label="依短線氣氛" active={sort === "sentiment"} onClick={() => setSort("sentiment")} />
       </div>
 
       <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
         {filtered.map(({ row, rank, rankDelta }) => (
-          <IndustryCard key={row.id} row={row} rank={rank} rankDelta={rankDelta} watched={watchedIds.has(row.id)} />
+          <IndustryCard
+            key={row.id}
+            row={row}
+            rank={rank}
+            rankDelta={rankDelta}
+            watched={watchedIds.has(row.id)}
+            sentiment={sentimentById[row.id] ?? null}
+          />
         ))}
       </div>
 

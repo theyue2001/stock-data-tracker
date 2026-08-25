@@ -11,14 +11,40 @@ import {
   technicalWord,
   trendFromDelta,
 } from "@/lib/radar-ui";
+import { RankChange } from "@/components/sentiment/rank-change";
+import { SENTIMENT_STATUS_BADGE, sentimentBarColor, sentimentTextColor, sentimentTrendGlyph } from "@/lib/sentiment-ui";
 import type { IndustryRadarRow } from "@/lib/queries";
-import type { IndustryStatus } from "@/lib/types";
+import type { IndustryStatus, SentimentStatus } from "@/lib/types";
+
+/** The short-term reading a card shows next to its heat score. Deliberately a
+ *  narrow slice of IndustrySentimentRow — a card needs the score, its
+ *  day-over-day change, and the rank move, not the full component breakdown. */
+export interface CardSentiment {
+  score: number;
+  delta: number;
+  rank: number;
+  previousRank: number | null;
+  rankDelta: number;
+  status: SentimentStatus;
+}
 
 /** 產業雷達 card — spec: title row (name + ☆ + badge) / score row (30px heat +
  *  trend + rank delta + RANK #n) / 4px heat bar / 2x2 momentum grid / 催化 /
  *  風險. Whole card navigates to the industry detail; the star intercepts
  *  its own click. */
-export function IndustryCard({ row, rank, rankDelta, watched }: { row: IndustryRadarRow; rank: number; rankDelta: number; watched: boolean }) {
+export function IndustryCard({
+  row,
+  rank,
+  rankDelta,
+  watched,
+  sentiment,
+}: {
+  row: IndustryRadarRow;
+  rank: number;
+  rankDelta: number;
+  watched: boolean;
+  sentiment?: CardSentiment | null;
+}) {
   const status = row.status as IndustryStatus;
   const badge = INDUSTRY_STATUS_BADGE[status];
   const trend = trendFromDelta(row.scoreChange);
@@ -50,7 +76,7 @@ export function IndustryCard({ row, rank, rankDelta, watched }: { row: IndustryR
         <span className="font-mono text-[11px] font-semibold" style={{ color: delta.color }}>
           {delta.text}
         </span>
-        <span className="ml-auto font-mono text-[10px] text-[var(--rd-text-muted)]">RANK #{rank}</span>
+        <span className="ml-auto font-mono text-[10px] text-[var(--rd-text-muted)]">熱度 RANK #{rank}</span>
       </div>
       <div className="h-1" style={{ background: "rgba(243,242,242,.12)" }}>
         <div className="h-1" style={{ width: `${row.scoreToday}%`, background: heatBarColor(row.scoreToday, status) }} />
@@ -61,6 +87,32 @@ export function IndustryCard({ row, rank, rankDelta, watched }: { row: IndustryR
         <MomentumCell label="基本面動能" word={fund} />
         <MomentumCell label="技術面動能" word={tech} />
       </div>
+      {sentiment && (
+        <div
+          className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1.5"
+          style={{ borderTop: "1px solid var(--rd-line)" }}
+        >
+          <span className="text-[9.5px] font-medium text-[var(--rd-text-muted)]">短線氣氛</span>
+          <span className="tnum text-[14px] font-bold" style={{ color: sentimentTextColor(sentiment.score) }}>
+            {sentiment.score.toFixed(0)}
+          </span>
+          <span className="tnum text-[10.5px] font-semibold" style={{ color: sentimentTrendGlyph(sentiment.delta).color }}>
+            {sentimentTrendGlyph(sentiment.delta).glyph}
+            {sentiment.delta !== 0 && Math.abs(sentiment.delta).toFixed(0)}
+          </span>
+          <span className="h-2.5 w-px" style={{ background: "rgba(243,242,242,.2)" }} />
+          <RankChange rank={sentiment.rank} previousRank={sentiment.previousRank} delta={sentiment.rankDelta} compact />
+          <span className="ml-auto">
+            <StatusChip badge={SENTIMENT_STATUS_BADGE[sentiment.status]} compact />
+          </span>
+          <span className="h-[3px] w-full" style={{ background: "rgba(243,242,242,.12)" }}>
+            <span
+              className="block h-[3px]"
+              style={{ width: `${sentiment.score}%`, background: sentimentBarColor(sentiment.score, sentiment.status) }}
+            />
+          </span>
+        </div>
+      )}
       {row.majorCatalyst && (
         <div className="flex gap-2">
           <span className="shrink-0 pt-px text-[9.5px] font-medium text-[var(--rd-text-muted)]">催化</span>

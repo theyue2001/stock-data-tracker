@@ -36,11 +36,23 @@ export default async function DailyBriefPage() {
         <BriefBullet tag="fact">{brief.marketSummary}</BriefBullet>
       </Section>
 
-      <Section n="02" title="資金輪動">
+      <Section n="02" title="短線產業氣氛">
+        <BriefBullet tag="fact">{brief.sentimentSummary || "本日尚無產業氣氛資料。"}</BriefBullet>
+        <SentimentGroup label="氣氛值上升最快" items={brief.sentimentRising} tag="fact" />
+        <SentimentGroup label="氣氛值下降最快" items={brief.sentimentFalling} tag="fact" />
+        <SentimentGroup label="排名躍升最多" items={brief.sentimentRankJumps} tag="fact" />
+        <SentimentGroup label="強勢群聚" items={brief.sentimentStrongClusters} tag="inference" />
+        <SentimentGroup label="短線過熱" items={brief.sentimentOverheated} tag="risk" />
+        <p className="mt-1 text-[10px] text-[var(--rd-text-muted)]">
+          短線氣氛為單日廣度與參與度讀數，與第 04 節的中期產業熱度分開計算；「短線過熱」描述漲勢延伸，非看空判斷。
+        </p>
+      </Section>
+
+      <Section n="03" title="資金輪動">
         <BriefBullet tag="inference">{brief.capitalRotation}</BriefBullet>
       </Section>
 
-      <Section n="03" title="最強 / 最弱產業">
+      <Section n="04" title="最強 / 最弱產業">
         {brief.strongestIndustries.map((s, i) => (
           <BriefBullet key={`s${i}`} tag="fact">
             {s}
@@ -53,7 +65,7 @@ export default async function DailyBriefPage() {
         ))}
       </Section>
 
-      <Section n="04" title="重要指標變化">
+      <Section n="05" title="重要指標變化">
         {brief.leadingIndicatorChanges.length ? (
           brief.leadingIndicatorChanges.map((s, i) => (
             <BriefBullet key={i} tag="fact">
@@ -65,11 +77,11 @@ export default async function DailyBriefPage() {
         )}
       </Section>
 
-      <Section n="05" title="法人動向">
+      <Section n="06" title="法人動向">
         <BriefBullet tag="fact">{brief.institutionalActivity}</BriefBullet>
       </Section>
 
-      <Section n="06" title="新興主題">
+      <Section n="07" title="新興主題">
         {brief.emergingThemes.length ? (
           brief.emergingThemes.map((s, i) => (
             <BriefBullet key={i} tag="inference">
@@ -81,7 +93,7 @@ export default async function DailyBriefPage() {
         )}
       </Section>
 
-      <Section n="07" title="監測個股">
+      <Section n="08" title="監測個股">
         {brief.stocksToWatch.length ? (
           brief.stocksToWatch.map((s, i) => (
             <BriefBullet key={i} tag="fact">
@@ -93,7 +105,7 @@ export default async function DailyBriefPage() {
         )}
       </Section>
 
-      <Section n="08" title="過熱區">
+      <Section n="09" title="過熱區">
         {brief.overheatedThemes.length ? (
           brief.overheatedThemes.map((s, i) => (
             <BriefBullet key={i} tag="risk">
@@ -105,7 +117,7 @@ export default async function DailyBriefPage() {
         )}
       </Section>
 
-      <Section n="09" title="主要風險">
+      <Section n="10" title="主要風險">
         {brief.keyRisks.map((s, i) => (
           <BriefBullet key={i} tag="risk">
             {s}
@@ -113,7 +125,7 @@ export default async function DailyBriefPage() {
         ))}
       </Section>
 
-      <Section n="10" title="明日觀察">
+      <Section n="11" title="明日觀察">
         <div className="text-[12.5px] leading-[2] text-[rgba(243,242,242,.85)]">
           {brief.tomorrowWatchlist.map((s, i) => (
             <div key={i}>
@@ -127,6 +139,22 @@ export default async function DailyBriefPage() {
       <p className="mt-4 text-[10.5px] leading-relaxed text-[var(--rd-text-muted)]" style={{ borderTop: "1px solid var(--rd-line)", paddingTop: 10 }}>
         本簡報為研究輔助用途，依 {brief.generatedBy === "mock" ? "規則式" : brief.generatedBy} 引擎由示範資料集產生，不構成買賣建議，亦不保證任何報酬。使用前請自行核對原始數據來源。
       </p>
+    </div>
+  );
+}
+
+/** One labelled group inside the sentiment section. Renders nothing when the
+ *  brief has no rows for it, rather than an empty heading. */
+function SentimentGroup({ label, items, tag }: { label: string; items: string[]; tag: "fact" | "inference" | "risk" }) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-1.5">
+      <div className="text-[10px] font-medium text-[var(--rd-text-muted)]">{label}</div>
+      {items.map((s, i) => (
+        <BriefBullet key={i} tag={tag}>
+          {s}
+        </BriefBullet>
+      ))}
     </div>
   );
 }

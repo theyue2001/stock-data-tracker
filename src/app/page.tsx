@@ -8,7 +8,9 @@ import {
   getWatchlistKeys,
 } from "@/lib/queries";
 import { num, pct } from "@/lib/format";
+import { getIndustryMomentum, industryToTableRow, subIndustryToTableRow } from "@/lib/sentiment-queries";
 import { SectionHeader } from "@/components/radar/section-header";
+import { IndustryMomentum } from "@/components/sentiment/industry-momentum";
 import { KpiStrip } from "@/components/radar/kpi-strip";
 import { HeatBar } from "@/components/radar/heat-bar";
 import { StatusChip } from "@/components/radar/status-chip";
@@ -44,13 +46,14 @@ function regimeLabel(changePct: number, radar: Awaited<ReturnType<typeof getIndu
 }
 
 export default async function OverviewPage() {
-  const [market, radar, flow, indicators, alerts, watchKeys] = await Promise.all([
+  const [market, radar, flow, indicators, alerts, watchKeys, momentum] = await Promise.all([
     getMarketStatus(),
     getIndustryRadar(),
     getCapitalFlow(),
     getIndicatorOverview(),
     getAlerts(20),
     getWatchlistKeys(),
+    getIndustryMomentum(),
   ]);
 
   const byScoreToday = [...radar].sort((a, b) => b.scoreToday - a.scoreToday);
@@ -167,12 +170,37 @@ export default async function OverviewPage() {
         </p>
       )}
 
+      {/* -------------------------- 產業氣氛 / INDUSTRY MOMENTUM --------------------------
+          Short-term breadth and participation. Placed directly under the market
+          KPI strip and above the heat ranking because it answers "what is
+          moving RIGHT NOW", which is the first question this screen exists to
+          answer — and because reading it before the medium-term heat ranking
+          makes the two horizons easy to compare rather than easy to confuse. */}
+      <div className="pt-[18px]">
+        {momentum.date ? (
+          <IndustryMomentum
+            date={momentum.date}
+            industryRows={momentum.industries.map(industryToTableRow)}
+            subIndustryRows={momentum.subIndustries.map(subIndustryToTableRow)}
+            watchedIndustryIds={[...watchKeys.industryIds]}
+          />
+        ) : (
+          <>
+            <SectionHeader title="產業氣氛" kicker="INDUSTRY MOMENTUM" />
+            <p className="py-3 text-[12px] text-[var(--rd-text-secondary)]">
+              尚無氣氛值資料 — 執行 <code>npm run jobs:refresh</code>（或 <code>npm run db:reset</code> 重建含歷史的示範資料集）。
+            </p>
+          </>
+        )}
+      </div>
+
       <div className="grid gap-6 pt-[18px]" style={{ gridTemplateColumns: "1fr 336px" }}>
         {/* -------------------------- left: heat ranking -------------------------- */}
         <div>
           <div className="rd-rule flex items-baseline gap-2.5 pt-2.5">
             <span className="text-[13px] font-bold">產業熱度排行</span>
             <span className="font-mono text-[9px] tracking-[.16em] text-[var(--rd-text-muted)]">INDUSTRY HEAT RANKING</span>
+            <span className="text-[10px] text-[var(--rd-text-secondary)]">中期：基本面 · 領先指標 · 資金流 · 技術面 · 催化</span>
             <span className="ml-auto text-[10px] text-[var(--rd-text-muted)]">☆ 加入追蹤 · 點列開產業雷達</span>
           </div>
           <div

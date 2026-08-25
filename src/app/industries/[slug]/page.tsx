@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getIndustryDetail, getWatchlistKeys } from "@/lib/queries";
+import { getIndustrySentimentPanel } from "@/lib/sentiment-queries";
 import { num, pct } from "@/lib/format";
 import { KpiStrip } from "@/components/radar/kpi-strip";
 import { SectionHeader } from "@/components/radar/section-header";
 import { StatusChip } from "@/components/radar/status-chip";
 import { WatchStar } from "@/components/radar/watch-star";
 import { RdSparkline } from "@/components/radar/rd-sparkline";
+import { SentimentPanel } from "@/components/sentiment/sentiment-panel";
 import {
   CYCLE_ZH,
   INDUSTRY_STATUS_BADGE,
@@ -23,7 +25,11 @@ export const dynamic = "force-dynamic";
 
 export default async function IndustryDetailPage({ params }: PageProps<"/industries/[slug]">) {
   const { slug } = await params;
-  const [industry, watchKeys] = await Promise.all([getIndustryDetail(slug), getWatchlistKeys()]);
+  const [industry, watchKeys, sentiment] = await Promise.all([
+    getIndustryDetail(slug),
+    getWatchlistKeys(),
+    getIndustrySentimentPanel(slug),
+  ]);
 
   if (!industry) notFound();
 
@@ -61,7 +67,7 @@ export default async function IndustryDetailPage({ params }: PageProps<"/industr
       <KpiStrip
         cells={[
           {
-            label: "熱度分數",
+            label: "中期熱度分數",
             value: (
               <>
                 {industry.scoreToday.toFixed(0)} <span className="font-mono text-[11px] font-semibold" style={{ color: directionColor(industry.scoreToday - industry.scoreWeekAgo) }}>{trendFromDelta(industry.scoreToday - industry.scoreWeekAgo).glyph}</span>
@@ -76,10 +82,27 @@ export default async function IndustryDetailPage({ params }: PageProps<"/industr
         ]}
       />
 
+      {/* 短線氣氛 sits above the medium-term content and inside its own box:
+          spec §8 requires it to be visually separate from the Industry Heat
+          Score so a reader never mistakes one horizon's number for the
+          other's. */}
+      <div className="pt-[18px]">
+        {sentiment ? (
+          <SentimentPanel panel={sentiment} />
+        ) : (
+          <>
+            <SectionHeader title="短線氣氛" kicker="SHORT-TERM SENTIMENT" />
+            <p className="py-2.5 text-[11.5px] text-[var(--rd-text-secondary)]">
+              尚無氣氛值資料 — 執行 <code>npm run jobs:refresh</code> 產生今日快照。
+            </p>
+          </>
+        )}
+      </div>
+
       <div className="grid gap-6 pt-[18px]" style={{ gridTemplateColumns: "1fr 320px" }}>
         {/* -------------------------- left -------------------------- */}
         <div>
-          <SectionHeader title="產業論點" kicker="THESIS" />
+          <SectionHeader title="產業論點" kicker="THESIS" note={<span>中期產業熱度 {industry.scoreToday.toFixed(0)}</span>} />
           <p className="py-2 text-[13px] leading-[1.9]" style={{ maxWidth: 640, color: "rgba(243,242,242,.85)" }}>
             {industry.thesis ?? "此產業之論點建置中。"}
           </p>
