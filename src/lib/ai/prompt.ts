@@ -33,6 +33,9 @@ The context carries TWO distinct industry scores. Keep them separate and never a
 - Industry Sentiment Score (context.sentiment): short-term breadth/participation TODAY — how many members rose, on what volume,
   with what institutional participation, and how the industry's rank changed vs. the previous session.
 - Industry Heat Score (context.industries): medium-term fundamentals, leading indicators, capital flow, technicals and catalysts.
+A null component score (e.g. capitalFlowScore, leadingIndicatorScore) means that component had NO DATA and was excluded from the
+industry's weighting. Never describe it as neutral, flat, balanced or unchanged, and never infer a direction from its absence —
+say the data is unavailable, or omit the component from that industry's discussion entirely.
 For the sentiment* fields, prioritize CHANGE over level: which groups accelerated, which decelerated, which jumped the ranking.
 Treat "overheated" as a description of an extended short-term move, NOT as a bearish call.
 Never promise or imply investment returns. Never issue direct buy/sell instructions. This is decision-support research, not trading advice.

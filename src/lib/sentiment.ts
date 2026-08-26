@@ -10,6 +10,7 @@
 //   Sentiment = today's strength, breadth, participation, acceleration.
 //   Heat      = medium-term fundamentals, leading indicators, flow, technicals, catalysts.
 import type { SentimentComponents, SentimentStatus, SentimentWeights } from "@/lib/types";
+import { isLowConfidence, parseWeightRecord, weightParticipated } from "@/lib/weights-snapshot";
 
 /**
  * Default weights per spec §1:
@@ -114,6 +115,11 @@ export function institutionalFlowScore(
   dealerNet: number,
   turnover: number,
 ): number {
+  // Callers MUST gate on `turnover > 0` and drop the component from the
+  // weighting when it is not — there is no institutional share of a session
+  // nobody traded, and this 50 would be an invented neutral reading, exactly
+  // what the flowSource === "none" path exists to avoid. Kept as a defensive
+  // floor rather than a throw so a formula unit test cannot divide by zero.
   if (turnover <= 0) return 50;
   const net = foreignNet + trustNet + dealerNet * 0.5;
   return squash(net / turnover, 0.05);
@@ -169,6 +175,38 @@ export function computeSentimentScore(components: SentimentComponents, weights: 
     normalizer;
 
   return Math.round(clamp(total, 0, 100) * 10) / 10;
+}
+
+// ---------------------------------------------------------------------------
+// Reading back a stored snapshot
+// ---------------------------------------------------------------------------
+
+/** Reads back the `weightsSnapshot` string stored on an
+ *  IndustrySentimentSnapshot row. Null when missing or unparseable — callers
+ *  must treat that as "unknown", never as zero. */
+export function parseSentimentWeightsSnapshot(snapshot: string | null | undefined): SentimentWeights | null {
+  return parseWeightRecord(snapshot, SENTIMENT_WEIGHT_FIELDS);
+}
+
+/**
+ * Whether a sentiment component actually contributed to a stored total.
+ *
+ * compute-sentiment.ts zeroes `institutionalFlowWeight` on the rows where the
+ * session had no usable flow figure, so a zero here means the stored
+ * `institutionalFlowScore` is inert filler (the column is NOT NULL and a 0 would
+ * read as heavy selling) and must be displayed as 無資料 rather than as a number.
+ */
+export function sentimentComponentParticipated(
+  snapshot: string | null | undefined,
+  key: keyof SentimentWeights,
+): boolean {
+  return weightParticipated(snapshot, SENTIMENT_WEIGHT_FIELDS, key);
+}
+
+/** Whether a stored sentiment score rests on too little of its own definition
+ *  to be read at face value — see `scoreIsLowConfidence` in scoring.ts. */
+export function sentimentIsLowConfidence(snapshot: string | null | undefined): boolean {
+  return isLowConfidence(snapshot, SENTIMENT_WEIGHT_FIELDS);
 }
 
 // ---------------------------------------------------------------------------

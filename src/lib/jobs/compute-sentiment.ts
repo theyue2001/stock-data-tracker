@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { utcDay, utcDateKey } from "@/lib/dates";
+import { flowIsCurrent, latestSessionDate, utcDay, utcDateKey } from "@/lib/dates";
 import { detectBreakout, type PriceBar } from "@/lib/breakout";
 import { getActiveSentimentWeights } from "@/lib/sentiment-weights";
 import {
@@ -94,6 +94,14 @@ export interface GroupSentiment {
   rollingRelativeStrengthPct: number;
   /** The session the figures describe — the latest at or before `asOf`. */
   sessionDate: Date | null;
+  /**
+   * The weighting `sentimentScore` was ACTUALLY computed with, which is not
+   * always the configured one: with no usable flow figure the institutional
+   * component is dropped by zeroing its weight. This is what gets snapshotted
+   * onto the row, so `weightsSnapshot` doubles as the record of which
+   * components took part — see `sentimentComponentParticipated` in sentiment.ts.
+   */
+  weights: SentimentWeights;
   /** Largest single-member contribution to the group return, in points. Lets
    *  the UI answer "is this one limit-up or the whole group?" without
    *  recomputing anything. */
@@ -116,6 +124,7 @@ function computeGroupSentiment(group: GroupInput, market: MarketReturns, weights
   }
   const sessionKeys = [...turnoverByDate.keys()].sort().reverse();
   const todayKey = sessionKeys[0] ?? null;
+  const sessionDate = latestSessionDate(members.map((m) => m.series[0]?.date));
 
   const todayTurnover = todayKey ? (turnoverByDate.get(todayKey) ?? 0) : 0;
   const priorKeys = sessionKeys.slice(1, VOLUME_AVG_SESSIONS + 1);
@@ -183,24 +192,40 @@ function computeGroupSentiment(group: GroupInput, market: MarketReturns, weights
   const rollingRelativeStrengthPct = groupFiveDayPct - market.fiveDayPct;
 
   // --- Components ---------------------------------------------------------
+  //
+  // The institutional component needs both a flow print for the session AND a
+  // turnover to normalize it against — the score is "how much of today's
+  // trading was institutional net buying", which is undefined for a group
+  // nobody traded.
+  //
+  // Where either is missing the component is EXCLUDED from the weighting rather
+  // than scored as a neutral 50. A missing T86 print is not evidence of
+  // balanced buying: 15% of the weight went to a constant, and the UI presented
+  // that constant as a real reading of institutional behaviour. Zeroing the
+  // weight lets computeSentimentScore renormalize the components that do have
+  // data, and the zero in weightsSnapshot is what the UI reads to show 無資料.
+  // The stored component stays at the inert 50 because the column is NOT NULL
+  // and a 0 would read as heavy selling.
+  const hasFlowScore = group.flowSource !== "none" && todayTurnover > 0;
   const components: SentimentComponents = {
     advancingRatio: round1(advancingRatioScore(advancingCount, stockCount)),
     averageReturn: round1(averageReturnScore(averageReturnPct)),
     volumeExpansion: round1(volumeExpansionScore(volumeRatio)),
     breakoutRatio: round1(breakoutRatioScore(breakoutCount, stockCount)),
-    // With no flow figure at all the component is a neutral 50 rather than 0:
-    // missing data is not evidence of selling.
-    institutionalFlowScore:
-      group.flowSource === "none"
-        ? 50
-        : round1(institutionalFlowScore(group.foreignNet, group.trustNet, group.dealerNet, todayTurnover)),
+    institutionalFlowScore: hasFlowScore
+      ? round1(institutionalFlowScore(group.foreignNet, group.trustNet, group.dealerNet, todayTurnover))
+      : 50,
     relativeStrengthScore: round1(relativeStrengthScore(relativeStrengthPct, rollingRelativeStrengthPct)),
   };
+  const effectiveWeights: SentimentWeights = hasFlowScore
+    ? weights
+    : { ...weights, institutionalFlowWeight: 0 };
 
   return {
     key: group.key,
     components,
-    sentimentScore: computeSentimentScore(components, weights),
+    weights: effectiveWeights,
+    sentimentScore: computeSentimentScore(components, effectiveWeights),
     advancingCount,
     flatCount,
     decliningCount,
@@ -215,10 +240,13 @@ function computeGroupSentiment(group: GroupInput, market: MarketReturns, weights
     foreignNet: group.foreignNet,
     trustNet: group.trustNet,
     dealerNet: group.dealerNet,
-    flowSource: group.flowSource,
+    // A flow print without turnover still cannot produce the normalized
+    // component. Keep the display contract aligned with the zeroed weight so
+    // callers do not render the inert 50 as a real reading.
+    flowSource: hasFlowScore ? group.flowSource : "none",
     relativeStrengthPct: round2(relativeStrengthPct),
     rollingRelativeStrengthPct: round2(rollingRelativeStrengthPct),
-    sessionDate: members[0]?.series[0]?.date ?? null,
+    sessionDate,
     topContributorTicker,
     topContributorSharePct: round1(topContributorSharePct),
   };
@@ -275,13 +303,6 @@ function toMembers(stocks: LoadedIndustry["stocks"]): GroupMember[] {
   }));
 }
 
-/** True only when the flow row actually describes the session being scored —
- *  a stale row from an earlier date must not be presented as today's flow. */
-function flowIsCurrent(flowDate: Date | undefined, sessionDate: Date | null): boolean {
-  if (!flowDate || !sessionDate) return false;
-  return utcDateKey(flowDate) === utcDateKey(sessionDate);
-}
-
 // ---------------------------------------------------------------------------
 // Industry-level
 // ---------------------------------------------------------------------------
@@ -303,7 +324,7 @@ export async function computeIndustrySentimentForDate(
 
   return industries.map((ind) => {
     const members = toMembers(ind.stocks);
-    const sessionDate = members.map((m) => m.series[0]?.date).find(Boolean) ?? null;
+    const sessionDate = latestSessionDate(members.map((m) => m.series[0]?.date));
     const flow = ind.flows[0];
     const hasFlow = flowIsCurrent(flow?.date, sessionDate);
 
@@ -342,7 +363,6 @@ export async function persistIndustrySentimentForDate(asOfInput: Date): Promise<
   const weights = await getActiveSentimentWeights();
   const results = await computeIndustrySentimentForDate(asOf, weights);
   const ranked = assignRanks(results);
-  const snapshot = JSON.stringify(weights);
 
   for (const r of ranked) {
     // Previous SESSIONS, by row, rather than by calendar offset: the ranking
@@ -395,7 +415,12 @@ export async function persistIndustrySentimentForDate(asOfInput: Date): Promise<
       rank5dAgo,
       rankDelta,
       status,
-      weightsSnapshot: snapshot,
+      // Per row, not one snapshot for the batch: an industry with no usable
+      // flow figure was scored on a reduced weighting, and storing the
+      // configured weighting instead would claim a total that this row's own
+      // numbers cannot reproduce — and would erase the only record that the
+      // institutional component did not take part.
+      weightsSnapshot: JSON.stringify(r.weights),
     };
 
     await db.industrySentimentSnapshot.upsert({
@@ -484,7 +509,7 @@ export async function computeSubIndustrySentimentForDate(
 
     for (const [subIndustry, bucket] of groups) {
       const members = toMembers(bucket.stocks);
-      const sessionDate = members.map((m) => m.series[0]?.date).find(Boolean) ?? null;
+      const sessionDate = latestSessionDate(members.map((m) => m.series[0]?.date));
 
       const stockFlows = bucket.stocks
         .map((s) => s.flows[0])

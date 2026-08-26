@@ -49,7 +49,9 @@ export default async function WatchlistPage() {
             <PanelRows>
               {industries.map((r) => {
                 const trend = trendFromDelta(r.changeValue);
-                const flow = flowWord(r.capitalFlowScore ?? 0);
+                // `?? null`, never `?? 0`: a missing score is 無資料, and 0 is
+                // the bottom of the scale (強力流出), not a stand-in for absence.
+                const flow = flowWord(r.capitalFlowScore ?? null);
                 const badge = INDUSTRY_STATUS_BADGE[r.status as IndustryStatus] ?? INDUSTRY_STATUS_BADGE.neutral;
                 return (
                   <div key={r.id} className="flex flex-col gap-1.5 px-3 py-2.5 sm:px-3.5">
