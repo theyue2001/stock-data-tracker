@@ -143,6 +143,29 @@ export interface MarketStatusProvider {
 }
 
 // ---------------------------------------------------------------------------
+// Intraday index level
+// ---------------------------------------------------------------------------
+
+export interface IntradayIndexResult {
+  date: Date;
+  index: string;
+  last: number;
+  change: number;
+  changePct: number;
+  high: number;
+  low: number;
+  /** Exchange-reported time of the last tick, "HH:mm:ss". */
+  tickAt: string;
+}
+
+export interface IntradayIndexProvider {
+  source: ProviderSource;
+  /** Empty array means "no tick yet for this session" (pre-market, or the
+   *  feed has nothing new) — never a zero-filled row. */
+  fetchLatest(): Promise<IntradayIndexResult[]>;
+}
+
+// ---------------------------------------------------------------------------
 // Fundamentals
 // ---------------------------------------------------------------------------
 

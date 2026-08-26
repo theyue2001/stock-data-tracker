@@ -11,6 +11,11 @@
  *   - WATCHLIST   — user-mutable star/watchlist state. Expired by the server
  *                   actions in src/app/watchlist/actions.ts via `updateTag`,
  *                   so a star toggle is visible on the very next request.
+ *   - INTRADAY    — the once-a-minute TAIEX tick. Kept off RADAR_DATA on
+ *                   purpose: that tag has a `days` cacheLife, so bumping it
+ *                   every minute would force every OTHER cached read (radar,
+ *                   flows, indicators — none of which change intraday) to
+ *                   recompute on the next request for no reason.
  *
  * The CLI entry points (`npm run jobs:daily`, `npm run cron`,
  * `npm run db:backfill`, `npm run import:indicators`) CANNOT call
@@ -23,4 +28,5 @@
 export const CACHE_TAGS = {
   radarData: "radar-data",
   watchlist: "watchlist",
+  intraday: "intraday",
 } as const;

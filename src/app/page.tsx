@@ -4,6 +4,7 @@ import {
   getCapitalFlow,
   getIndicatorOverview,
   getIndustryRadar,
+  getIntradayIndex,
   getMarketStatus,
   getStockRadar,
   getWatchlistKeys,
@@ -65,8 +66,9 @@ function regimeLabel(changePct: number, radar: Awaited<ReturnType<typeof getIndu
 }
 
 export default async function OverviewPage() {
-  const [market, radar, flow, indicators, alerts, watchKeys, momentum, stocks] = await Promise.all([
+  const [market, intraday, radar, flow, indicators, alerts, watchKeys, momentum, stocks] = await Promise.all([
     getMarketStatus(),
+    getIntradayIndex(),
     getIndustryRadar(),
     getCapitalFlow(),
     getIndicatorOverview(),
@@ -121,12 +123,20 @@ export default async function OverviewPage() {
   // whenever that fallback is in effect, so a gap doesn't read as "flat".
   const flowSub = market?.detailStale ? `法人買賣超 · ${market.detailDate} 資料` : "法人買賣超";
 
+  // The intraday tick only ever describes TODAY's session (getIntradayIndex
+  // returns null once it isn't), so its presence alone is enough to prefer it
+  // over the settled close — no separate date comparison needed here.
+  const taiexClose = intraday ? intraday.last : market?.close;
+  const taiexChange = intraday ? intraday.change : market?.change;
+  const taiexChangePct = intraday ? intraday.changePct : (market?.changePct ?? 0);
+  const headerNote = intraday ? `盤中更新 ${intraday.tickAt}` : "LAST UPDATE 20:00 TST";
+
   return (
     <PageShell>
-      <PageHeader title="市場總覽" note="LAST UPDATE 20:00 TST" subtitle="每個區塊只列重點 — 點卡片右下角進入完整資料">
+      <PageHeader title="市場總覽" note={headerNote} subtitle="每個區塊只列重點 — 點卡片右下角進入完整資料">
         {market && (
           <span className="bg-[rgba(255,86,60,.14)] px-2.5 py-1 text-[11px] font-bold text-[#ff8a70]">
-            {regimeLabel(market.changePct, radar)}
+            {regimeLabel(taiexChangePct, radar)}
           </span>
         )}
       </PageHeader>
@@ -135,13 +145,13 @@ export default async function OverviewPage() {
         <KpiStrip
           cells={[
             {
-              label: "加權指數 TAIEX",
-              value: num(market.close, 2),
-              valueColor: directionColor(market.changePct),
+              label: intraday ? `加權指數 TAIEX · 盤中 ${intraday.tickAt.slice(0, 5)}` : "加權指數 TAIEX",
+              value: num(taiexClose ?? 0, 2),
+              valueColor: directionColor(taiexChangePct),
               emphasis: true,
               sub: (
-                <span style={{ color: directionColor(market.changePct) }}>
-                  {market.change >= 0 ? "▲" : "▼"} {num(Math.abs(market.change), 2)}（{pct(market.changePct)}）
+                <span style={{ color: directionColor(taiexChangePct) }}>
+                  {(taiexChange ?? 0) >= 0 ? "▲" : "▼"} {num(Math.abs(taiexChange ?? 0), 2)}（{pct(taiexChangePct)}）
                 </span>
               ),
             },

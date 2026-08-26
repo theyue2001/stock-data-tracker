@@ -5,6 +5,7 @@ import { TwseInstitutionalFlowProvider } from "@/lib/providers/live/flow-provide
 import { MopsFundamentalProvider } from "@/lib/providers/live/fundamental-provider";
 import { MopsCatalystProvider } from "@/lib/providers/live/catalyst-provider";
 import { SecHyperscalerCapexProvider } from "@/lib/providers/live/indicator-provider";
+import { TwseMisIndexProvider } from "@/lib/providers/live/intraday-provider";
 
 /**
  * Read-only shape check across every live feed.
@@ -72,6 +73,21 @@ export async function runSourceVerification(): Promise<VerificationResult> {
         name: "prices",
         ok: quotes.length > stocks.length * 0.8 && sane,
         detail: `${quotes.length}/${stocks.length} stocks, OHLC coherent: ${sane}`,
+      };
+    }),
+  );
+
+  checks.push(
+    await check("intraday-index", async () => {
+      const [tick] = await new TwseMisIndexProvider().fetchLatest();
+      // No band check on freshness: outside 08:30-13:30 the feed legitimately
+      // has nothing new (fetchLatest returns []), which is not a failure — see
+      // its doc comment. Only asserts the shape when it does report something.
+      const plausible = !tick || (tick.last > 1000 && tick.high >= tick.low);
+      return {
+        name: "intraday-index",
+        ok: plausible,
+        detail: tick ? `${tick.date.toISOString().slice(0, 10)} ${tick.tickAt} last ${tick.last}` : "no tick (market closed)",
       };
     }),
   );

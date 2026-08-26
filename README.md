@@ -335,39 +335,81 @@ npm run jobs:refresh   # pull providers → recompute technicals, statuses, scor
 npm run jobs:alerts    # evaluate alert rules
 npm run jobs:brief     # generate the AI daily brief
 npm run jobs:daily     # all three, in order
-npm run cron           # long-running scheduler, 20:00 Asia/Taipei, Mon–Fri
+npm run jobs:intraday  # one TAIEX tick from the MIS real-time feed
+npm run cron           # long-running local scheduler — see cadence below
 ```
 
 ```bash
 npm run verify:sources # read-only: confirm every live feed still parses
 ```
 
-On serverless platforms use the platform scheduler against the job routes instead of `npm run cron`. Set `CRON_SECRET` and send it as `Authorization: Bearer <secret>`. With no secret configured the job routes are allowed only outside production, so a deployed instance can never be triggered anonymously. Vercel Cron only sends `GET`, so every job route exports a `GET` alias, and Vercel sends `CRON_SECRET` as a bearer token automatically.
+`npm run cron` (`scripts/cron.ts`) runs two independent rhythms:
 
-**`vercel.json` schedules the whole pipeline as one entry, plus a health check:**
+- **Intraday** — every minute, 08:30–13:30 Asia/Taipei, Mon–Fri. Polls the MIS
+  real-time feed for the TAIEX level only (`/api/jobs/intraday`'s job
+  function) and writes `IntradayIndex`. This is the only provider in the
+  codebase with anything new to say mid-session; everything else reads an
+  after-hours report.
+- **Pipeline check** — every 5 minutes, 13:31–23:59 Asia/Taipei, Mon–Fri. Runs
+  the full refresh → alerts → brief pipeline the first time today's session
+  has actually landed at TWSE, and is a no-op on every check after that (see
+  `hasTodaysSession` in `src/lib/jobs/refresh-data.ts`). This is what makes
+  5-minute polling safe: it is a fetch attempt only until the first one
+  succeeds each day, not 120-some full pipeline runs.
 
-| Time (UTC) | Route | What it does |
-| --- | --- | --- |
-| 12:00 | `/api/jobs/daily` | refresh → alerts → brief → revalidate, in that order, in one invocation |
-| 16:00 | `/api/jobs/verify` | Read-only feed-shape check; returns 503 if any feed drifted |
+### Driving the jobs from outside
 
-The single entry is deliberate, and it is a plan constraint rather than a
-preference. **Hobby cron precision is ±59 minutes**: an entry scheduled at
-12:00 fires somewhere in 12:00–12:59. Two entries ten minutes apart therefore
-have no guaranteed order, and `alerts` running before `refresh` does not fail —
-it reads the previous session and emits confident, wrong alerts, then `brief`
-narrates them. Sequencing the stages inside one function is the only ordering
-guarantee this plan offers.
+Every job route is built to be called by a scheduler: set `CRON_SECRET` and
+send it as `Authorization: Bearer <secret>`. With no secret configured the
+routes are allowed only outside production, so a deployed instance can never
+be triggered anonymously. Each route exports a `GET` alias as well as `POST`,
+because most schedulers (Vercel Cron included) only send `GET`.
 
-It fits: **the full pipeline measures 91 s against Hobby's 300 s ceiling**
-(refresh 84 s of it — see `RefreshSummary.timings` for the per-step split,
-which is spread evenly across nine steps with no single hot spot). Every write
-is an upsert, so a run killed partway is repaired by the next day's.
+There are three ways to get the cadence above, and **the choice is forced by
+Vercel's cron limits, not by preference**: Hobby allows **2 cron jobs, firing
+at most once a day at an unspecified minute inside the scheduled hour**. That
+cannot express "every minute during the session" at all.
 
-The 4-hour gap before `verify` is sized to absorb the ±59 min jitter on *both*
-entries — worst case the daily job starts at 12:59 and `verify` at 16:00 — so
-`verify` can never observe a pre-job state and report a stale session as a
-broken feed.
+| | Intraday cadence | Cost | Depends on |
+| --- | --- | --- | --- |
+| **External scheduler → the job routes** | yes | free tier available | a third-party service staying up |
+| `npm run cron` on an always-on box | yes | a machine | that machine staying up |
+| Vercel Cron | **no** — Pro only, and even then per-invocation cost | Pro plan | nothing extra |
+
+The external-scheduler route is what `vercel.json` is now sized for: it keeps
+only a **daily safety net** (2 entries, inside Hobby's limit) and leaves the
+real cadence to whatever is calling from outside. Point any cron service
+(cron-job.org, EasyCron, Cloudflare Workers Cron, a GitHub Actions schedule,
+…) at these, with the `Authorization` header on every entry:
+
+| Schedule (Asia/Taipei) | Request |
+| --- | --- |
+| every minute, 08:30–13:30, Mon–Fri | `GET https://<your-app>/api/jobs/intraday` |
+| every 5 min, 13:30–23:59, Mon–Fri | `GET https://<your-app>/api/jobs/daily` |
+
+In UTC — what most schedulers actually take — that is `30-59 0`, `* 1-4` and
+`0-30 5` for intraday, and `30-59/5 5` plus `*/5 6-15` for the pipeline check,
+all `* * 1-5`.
+
+Both endpoints are safe to call on that schedule, and safe to over-call:
+
+- `/api/jobs/intraday` upserts one row keyed by `(index, date)`, so repeats
+  overwrite rather than accumulate. Outside market hours the feed returns no
+  tick and the job writes nothing; on a holiday it returns the *last* session's
+  tick, which lands on that session's own row and so never renders as today's
+  intraday badge (see `getIntradayIndex`).
+- `/api/jobs/daily` is a no-op once today's session is stored — see
+  `hasTodaysSession`. Note the asymmetry with the local scheduler: this route
+  re-derives that from the database on every call, because each serverless
+  invocation is a fresh process with no memory of an earlier success.
+
+Every write is an upsert, so a pipeline run killed partway is repaired by the
+next one.
+
+**GitHub Actions caveat** if you use it as the scheduler: scheduled workflows
+are explicitly best-effort and can be delayed during peak load, with 5 minutes
+as the shortest practical interval. It suits the 5-minute pipeline check; it
+does not reliably deliver a per-minute tick.
 
 `/api/jobs/verify` is the one worth scheduling forever. These are public
 reports, not versioned APIs: a renamed column produces a plausible-looking
@@ -402,7 +444,7 @@ Mutating:
 ```
 PATCH /api/score-weights            adjust heat weights (must sum to 1.00)
 PATCH /api/sentiment-weights        adjust sentiment weights (must sum to 1.00)
-POST  /api/jobs/{refresh,alerts,brief,daily}
+POST  /api/jobs/{refresh,alerts,brief,daily,intraday}
 ```
 
 Every response is wrapped as `{ data, meta }`. `meta.dataMode` is `live` or `mock` and `meta.isDemoData` is true only in mock mode — a statement about the pipeline, not about every row. A database switched from demo to live still holds whatever mock rows predate the switch; per-row `isMock` is the ground truth.
@@ -432,7 +474,13 @@ CRON_SECRET=""
 
 # Required in production — the daily job uses it to expire the read cache.
 APP_URL="https://your-deployment.vercel.app"
-CRON_SCHEDULE="0 20 * * 1-5"
+
+# Only read by `npm run cron` (scripts/cron.ts). Defaults match the table
+# above; override to change cadence without touching the schedule strings
+# in code. CRON_INTRADAY_SCHEDULE is comma-separated (multiple cron
+# expressions cover the 08:30-13:30 window — see scripts/cron.ts).
+CRON_INTRADAY_SCHEDULE="30-59 8 * * 1-5,* 9-12 * * 1-5,0-30 13 * * 1-5"
+CRON_PIPELINE_SCHEDULE="*/5 13-23 * * 1-5"
 CRON_TIMEZONE="Asia/Taipei"
 ```
 
@@ -492,7 +540,7 @@ Industry
    ```bash
    mv .env .env.local.bak
    vercel env pull .env          # writes the production values
-   npx prisma migrate deploy     # create the 18 tables
+   npx prisma migrate deploy     # create the 19 tables
    npm run db:seed               # demo dataset
    npm run jobs:daily            # first scores, alerts, brief
    mv .env.local.bak .env        # put local dev back
@@ -502,10 +550,12 @@ Industry
    Build* if later deploys should migrate themselves. The seed only ever runs
    this once.
 
-Thereafter the cron in `vercel.json` keeps the data fresh. On the Hobby plan
-cron fires **once per day and not at a guaranteed minute** — it lands somewhere
-inside the scheduled hour. For minute-accurate runs, run `npm run cron` on any
-always-on machine instead and drop the `crons` block.
+6. **Point a scheduler at the job routes.** `vercel.json` only carries a daily
+   safety net, because Hobby cron cannot do intraday cadence — see
+   [Driving the jobs from outside](#driving-the-jobs-from-outside) for the
+   two endpoints, their schedules, and the required `Authorization` header.
+   Without this step the dashboard shows whatever the last manual
+   `npm run jobs:daily` wrote.
 
 ---
 

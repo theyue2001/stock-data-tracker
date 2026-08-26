@@ -5,6 +5,7 @@ import { TwseInstitutionalFlowProvider } from "@/lib/providers/live/flow-provide
 import { TwseMarketStatusProvider } from "@/lib/providers/live/market-status-provider";
 import { MopsFundamentalProvider } from "@/lib/providers/live/fundamental-provider";
 import { MopsCatalystProvider } from "@/lib/providers/live/catalyst-provider";
+import { TwseMisIndexProvider } from "@/lib/providers/live/intraday-provider";
 import {
   DerivedOdmRevenueProvider,
   SecHyperscalerCapexProvider,
@@ -12,6 +13,7 @@ import {
 import type {
   FundamentalProvider,
   IndicatorProvider,
+  IntradayIndexProvider,
   InstitutionalFlowProvider,
   MarketDataProvider,
   MarketStatusProvider,
@@ -39,6 +41,11 @@ const live = dataMode === "live";
 export const marketDataProviders: MarketDataProvider[] = live ? [new TwseMarketDataProvider()] : [];
 
 export const marketStatusProviders: MarketStatusProvider[] = live ? [new TwseMarketStatusProvider()] : [];
+
+/** Separate from marketStatusProviders: this is the only registry entry that
+ *  reads a mid-session feed rather than an after-hours report, and it is
+ *  driven by its own lightweight job (refresh-intraday.ts), not runRefreshJob. */
+export const intradayIndexProviders: IntradayIndexProvider[] = live ? [new TwseMisIndexProvider()] : [];
 
 export const institutionalFlowProviders: InstitutionalFlowProvider[] = live
   ? [new TwseInstitutionalFlowProvider()]
