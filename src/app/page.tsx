@@ -115,6 +115,12 @@ export default async function OverviewPage() {
     .filter((r) => (r.status === "accelerating" || r.status === "strengthening") && r.majorCatalyst)
     .slice(0, 3);
 
+  // 三大法人 figures are a separate, rate-limited report from the index
+  // close and can miss a run; getMarketStatus then falls back to the last
+  // session that actually reported them rather than a defaulted 0. Say so
+  // whenever that fallback is in effect, so a gap doesn't read as "flat".
+  const flowSub = market?.detailStale ? `法人買賣超 · ${market.detailDate} 資料` : "法人買賣超";
+
   return (
     <PageShell>
       <PageHeader title="市場總覽" note="LAST UPDATE 20:00 TST" subtitle="每個區塊只列重點 — 點卡片右下角進入完整資料">
@@ -161,7 +167,7 @@ export default async function OverviewPage() {
                 </>
               ),
               valueColor: directionColor(market.foreignNet),
-              sub: "法人買賣超",
+              sub: flowSub,
             },
             {
               label: "投信",
@@ -171,7 +177,7 @@ export default async function OverviewPage() {
                 </>
               ),
               valueColor: directionColor(market.trustNet),
-              sub: "法人買賣超",
+              sub: flowSub,
             },
             {
               label: "自營商",
@@ -181,7 +187,7 @@ export default async function OverviewPage() {
                 </>
               ),
               valueColor: directionColor(market.dealerNet),
-              sub: "法人買賣超",
+              sub: flowSub,
             },
             {
               label: "風險溫度",

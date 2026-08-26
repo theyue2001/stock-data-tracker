@@ -159,9 +159,19 @@ export function revenueAccelWord(momChangePct: number | null): { label: string; 
   return { label: "減速", color: "#6cc79d" };
 }
 
-/** Leading-indicator direction badge: real improving/deteriorating/flat flag
- *  → the handoff's colored direction chip. */
-export function indicatorDirection(improving: boolean | null): BadgeStyle {
+/**
+ * Leading-indicator direction badge: real improving/deteriorating/flat flag
+ * → the handoff's colored direction chip.
+ *
+ * `hasData` must be `ind.value != null` at the call site. Most of the
+ * indicator taxonomy has never been fetched (licensed data with no free
+ * feed — see README "Indicator coverage"), and `improving` collapses that
+ * case to the same `null` as a genuinely flat reading. Without `hasData`
+ * those 47 empty indicators render "持平", asserting a real unchanged
+ * measurement the data never provided.
+ */
+export function indicatorDirection(improving: boolean | null, hasData: boolean): BadgeStyle {
+  if (!hasData) return { label: "無資料", bg: "transparent", border: "rgba(243,242,242,.18)", color: "rgba(243,242,242,.4)" };
   if (improving === true) return { label: "改善中", bg: "rgba(255,86,60,.14)", border: "transparent", color: "#ff9783" };
   if (improving === false) return { label: "惡化中", bg: "rgba(61,174,124,.14)", border: "transparent", color: "#6cc79d" };
   return { label: "持平", bg: "transparent", border: "rgba(243,242,242,.3)", color: "rgba(243,242,242,.65)" };
