@@ -5,7 +5,7 @@ import { BreadthBar, BreadthCounts } from "@/components/sentiment/breadth-bar";
 import { RankChange, RankTrend } from "@/components/sentiment/rank-change";
 import { SentimentSpark } from "@/components/sentiment/sentiment-spark";
 import { pct } from "@/lib/format";
-import { LOW_CONFIDENCE_BADGE, directionColor, yiFlow } from "@/lib/radar-ui";
+import { directionColor, yiFlow } from "@/lib/radar-ui";
 import {
   FLOW_SOURCE_NOTE,
   QUADRANT_META,
@@ -70,10 +70,7 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
           </div>
 
           <div className="ml-auto flex flex-col items-end gap-1.5">
-            <span className="flex items-center gap-1.5">
-              {panel.lowConfidence ? <StatusChip badge={LOW_CONFIDENCE_BADGE} compact /> : null}
-              <StatusChip badge={badge} />
-            </span>
+            <StatusChip badge={badge} />
             <span className="flex items-center gap-1.5">
               <span className="text-[9.5px] text-[var(--rd-text-muted)]">近 {panel.sentimentTrend.length} 日</span>
               <SentimentSpark points={panel.sentimentTrend} color={barColor} width={72} height={22} />

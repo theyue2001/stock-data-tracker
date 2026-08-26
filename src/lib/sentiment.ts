@@ -10,7 +10,7 @@
 //   Sentiment = today's strength, breadth, participation, acceleration.
 //   Heat      = medium-term fundamentals, leading indicators, flow, technicals, catalysts.
 import type { SentimentComponents, SentimentStatus, SentimentWeights } from "@/lib/types";
-import { isLowConfidence, parseWeightRecord, weightParticipated } from "@/lib/weights-snapshot";
+import { parseWeightRecord, weightParticipated } from "@/lib/weights-snapshot";
 
 /**
  * Default weights per spec §1:
@@ -203,11 +203,13 @@ export function sentimentComponentParticipated(
   return weightParticipated(snapshot, SENTIMENT_WEIGHT_FIELDS, key);
 }
 
-/** Whether a stored sentiment score rests on too little of its own definition
- *  to be read at face value — see `scoreIsLowConfidence` in scoring.ts. */
-export function sentimentIsLowConfidence(snapshot: string | null | undefined): boolean {
-  return isLowConfidence(snapshot, SENTIMENT_WEIGHT_FIELDS);
-}
+// There is deliberately no sentiment counterpart to `scoreIsLowConfidence`.
+// That marker exists because the heat score has TWO data-gated components
+// (leading indicators 25% + capital flow 20%), so both going missing leaves it
+// resting on 0.55 of its definition. Sentiment has exactly one —
+// institutionalFlowWeight, 15% — so the worst case is 0.85, which is a
+// perfectly readable score that needs no warning. A marker wired up here would
+// never fire under any weighting the operator actually runs.
 
 // ---------------------------------------------------------------------------
 // Status classification
