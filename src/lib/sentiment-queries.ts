@@ -1,8 +1,13 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/lib/db";
 import { CACHE_TAGS } from "@/lib/cache-tags";
-import { getRankedSubIndustrySentiment } from "@/lib/jobs/compute-sentiment";
-import { classifyQuadrant, type SentimentHeatQuadrant } from "@/lib/sentiment";
+import { getRankedSubIndustrySentiment, type FlowSource } from "@/lib/jobs/compute-sentiment";
+import {
+  classifyQuadrant,
+  sentimentComponentParticipated,
+  sentimentIsLowConfidence,
+  type SentimentHeatQuadrant,
+} from "@/lib/sentiment";
 import type { SentimentComponents, SentimentStatus } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +64,21 @@ export interface IndustrySentimentRow {
    *  element corresponds to `rank5dAgo`. */
   sentimentTrend: number[];
   rankTrend: number[];
+
+  /**
+   * Where the group's institutional figures came from, recovered from the
+   * stored `weightsSnapshot` rather than a column of its own.
+   *
+   * This used to be hard-coded to "industry" on every row, so an industry whose
+   * session had no T86 print showed its inert filler 50 as a real 中性 reading —
+   * the sub-industry rows carried a true flowSource and the industry rows never
+   * could. A zeroed `institutionalFlowWeight` is the scoring pass's record that
+   * the component did not take part, which is exactly the "none" case.
+   */
+  flowSource: FlowSource;
+  /** True when so much of the weighting was dropped for want of data that
+   *  `sentimentScore` no longer measures what 氣氛值 promises. */
+  lowConfidence: boolean;
 
   /** The medium-term Industry Heat Score, carried alongside for the spec §10
    *  Case A-D comparison. Never blended into the sentiment score. */
@@ -240,6 +260,11 @@ export async function loadIndustrySentimentRows(date: Date): Promise<IndustrySen
       sentimentTrend: history.map((h) => h.sentimentScore),
       rankTrend: history.map((h) => h.rank),
 
+      flowSource: sentimentComponentParticipated(s.weightsSnapshot, "institutionalFlowWeight")
+        ? "industry"
+        : "none",
+      lowConfidence: sentimentIsLowConfidence(s.weightsSnapshot),
+
       heatScore,
       quadrant: classifyQuadrant(s.sentimentScore, heatScore),
     };
@@ -392,7 +417,7 @@ export function industryToTableRow(r: IndustrySentimentRow): MomentumTableRow {
     foreignNet: r.foreignNet,
     trustNet: r.trustNet,
     dealerNet: r.dealerNet,
-    flowSource: "industry",
+    flowSource: r.flowSource,
     relativeStrengthPct: r.relativeStrengthPct,
     breakoutCount: r.breakoutCount,
     rank: r.rank,

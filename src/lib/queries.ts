@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/lib/db";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { utcDay, utcDayOffset } from "@/lib/dates";
-import { componentParticipated, scoreChangeTrend } from "@/lib/scoring";
+import { componentParticipated, scoreChangeTrend, scoreIsLowConfidence } from "@/lib/scoring";
 import type { IndustryStatus, RiskLevel, StockStatus, TechnicalTrend, ValuationPosition } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -30,10 +30,18 @@ export interface IndustryRadarRow {
      *  (see compute-scores.ts). Nullable so no display site can silently render
      *  the inert stored 50 as a real reading. */
     leadingIndicator: number | null;
-    capitalFlow: number;
+    /** null when no institutional-flow print described the scored session, so
+     *  the component was dropped from the weighting. Same contract as
+     *  `leadingIndicator`: the stored 50 is inert filler, not a 中性 reading. */
+    capitalFlow: number | null;
     technical: number;
     catalyst: number;
   };
+  /** True when so much of the weighting was dropped for want of data that
+   *  `scoreToday` no longer measures what 產業熱度 promises — see
+   *  `scoreIsLowConfidence`. The UI must mark such a row rather than presenting
+   *  the renormalized number as a complete score. */
+  lowConfidence: boolean;
   dailyChangePct: number;
   weeklyChangePct: number;
   foreignNet: number;
@@ -173,13 +181,18 @@ export async function getIndustryRadar(): Promise<IndustryRadarRow[]> {
       trend: scoreChangeTrend(scoreToday, scoreWeekAgo),
       components: {
         fundamental: latest?.fundamentalScore ?? 0,
-        leadingIndicator: componentParticipated(latest?.weightsSnapshot, "leadingIndicatorWeight")
-          ? latest?.leadingIndicatorScore ?? 0
-          : null,
-        capitalFlow: latest?.capitalFlowScore ?? 0,
+        leadingIndicator:
+          latest && componentParticipated(latest.weightsSnapshot, "leadingIndicatorWeight")
+            ? latest.leadingIndicatorScore
+            : null,
+        capitalFlow:
+          latest && componentParticipated(latest.weightsSnapshot, "capitalFlowWeight")
+            ? latest.capitalFlowScore
+            : null,
         technical: latest?.technicalScore ?? 0,
         catalyst: latest?.catalystScore ?? 0,
       },
+      lowConfidence: scoreIsLowConfidence(latest?.weightsSnapshot),
       dailyChangePct: round2(dailyChangePct),
       weeklyChangePct: round2(avg(weeklyChanges)),
       foreignNet: flow?.foreignNet ?? 0,
@@ -258,13 +271,18 @@ export async function getIndustryDetail(slug: string) {
     scoreWeekAgo: weekAgoScore?.totalScore ?? 0,
     components: {
       fundamental: latest?.fundamentalScore ?? 0,
-      leadingIndicator: componentParticipated(latest?.weightsSnapshot, "leadingIndicatorWeight")
-        ? latest?.leadingIndicatorScore ?? 0
-        : null,
-      capitalFlow: latest?.capitalFlowScore ?? 0,
+      leadingIndicator:
+        latest && componentParticipated(latest.weightsSnapshot, "leadingIndicatorWeight")
+          ? latest.leadingIndicatorScore
+          : null,
+      capitalFlow:
+        latest && componentParticipated(latest.weightsSnapshot, "capitalFlowWeight")
+          ? latest.capitalFlowScore
+          : null,
       technical: latest?.technicalScore ?? 0,
       catalyst: latest?.catalystScore ?? 0,
     },
+    lowConfidence: scoreIsLowConfidence(latest?.weightsSnapshot),
     weightsSnapshot: latest?.weightsSnapshot ?? null,
     scoreHistory: [...industry.scores].reverse().map((s) => ({
       date: s.date.toISOString().slice(0, 10),
@@ -273,7 +291,7 @@ export async function getIndustryDetail(slug: string) {
       leadingIndicator: componentParticipated(s.weightsSnapshot, "leadingIndicatorWeight")
         ? s.leadingIndicatorScore
         : null,
-      capitalFlow: s.capitalFlowScore,
+      capitalFlow: componentParticipated(s.weightsSnapshot, "capitalFlowWeight") ? s.capitalFlowScore : null,
       technical: s.technicalScore,
       catalyst: s.catalystScore,
     })),
@@ -569,8 +587,11 @@ export interface WatchlistRow {
   rank: number | null;
   highlight: string | null;
   sparkline: number[];
-  /** Industry rows only — drives the 資金流 word on the watchlist screen. */
-  capitalFlowScore?: number;
+  /** Industry rows only — drives the 資金流 word on the watchlist screen.
+   *  `null` where the component was dropped from the weighting for want of an
+   *  institutional-flow print; absent on stock and indicator rows, which have no
+   *  such score at all. Both must read as 無資料, never as a number. */
+  capitalFlowScore?: number | null;
   /** Stock rows only. */
   relativeStrength?: number;
   foreignNet?: number;
@@ -631,7 +652,12 @@ export async function getWatchlist(): Promise<WatchlistRow[]> {
               ? `${item.industry.name} heat score rose ${delta} points this week.`
               : null,
         sparkline: [...scores].reverse().map((s) => s.totalScore),
-        capitalFlowScore: scores[0]?.capitalFlowScore ?? 0,
+        // `?? 0` here used to render a missing score as 強力流出 — a worse
+        // reading than the 50 it was standing in for, since 0 is the bottom of
+        // the scale rather than its midpoint.
+        capitalFlowScore: componentParticipated(scores[0]?.weightsSnapshot, "capitalFlowWeight")
+          ? scores[0]?.capitalFlowScore ?? null
+          : null,
       });
       continue;
     }

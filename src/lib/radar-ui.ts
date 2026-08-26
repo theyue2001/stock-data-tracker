@@ -80,7 +80,13 @@ export function rankDeltaText(delta: number): { text: string; color: string } {
  *  the same visual language the handoff's `wc()` word-coloring applies to
  *  free-text labels like "強勁流入"/"轉弱", but driven off the real computed
  *  component score rather than seeded copy. */
-export function flowWord(score: number): { label: string; color: string } {
+export function flowWord(score: number | null): { label: string; color: string } {
+  // `null` means no institutional-flow print described the scored session, so
+  // the component was dropped from the weighting (see compute-scores.ts). It
+  // reads as 無資料 for the same reason `leadingIndicatorWord` does: the stored
+  // value is an inert 50, and rendering it as 中性 asserts a balanced session
+  // the report never reported.
+  if (score === null) return { label: "無資料", color: "rgba(243,242,242,.4)" };
   if (score >= 70) return { label: "強勁流入", color: "#ff8a70" };
   if (score >= 55) return { label: "中等流入", color: "#ff8a70" };
   if (score >= 45) return { label: "中性", color: "rgba(243,242,242,.55)" };
@@ -98,6 +104,23 @@ export function leadingIndicatorWord(score: number | null): { label: string; col
   if (score >= 45) return { label: "持平", color: "rgba(243,242,242,.55)" };
   return { label: "轉弱", color: "#6cc79d" };
 }
+
+/**
+ * Marker for a score computed from too little of its own definition.
+ *
+ * Both data-gated components can be missing at once — no licensed indicator
+ * series for the industry AND no institutional-flow print for the session —
+ * which leaves 產業熱度 measuring fundamentals, technicals and catalysts under a
+ * label that promises five inputs. Renormalizing keeps the number on a 0-100
+ * scale and comparable, so the number is still shown; this badge is what stops
+ * that substitution from being invisible.
+ */
+export const LOW_CONFIDENCE_BADGE: BadgeStyle = {
+  label: "參考性低",
+  bg: "transparent",
+  border: "rgba(243,242,242,.18)",
+  color: "rgba(243,242,242,.4)",
+};
 
 export function fundamentalWord(score: number): { label: string; color: string } {
   if (score >= 60) return { label: "改善", color: "#ff8a70" };

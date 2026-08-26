@@ -19,7 +19,10 @@ export interface DailyBriefContext {
     scoreToday: number;
     scoreWeekAgo: number;
     status: string;
-    capitalFlowScore: number;
+    /** null when no institutional-flow print described the scored session, so
+     *  the component was excluded from the heat score. Same reasoning as
+     *  `leadingIndicatorScore` below. */
+    capitalFlowScore: number | null;
     /** null when the industry has no indicator series, so the component was
      *  excluded from its heat score. Nullable rather than defaulted, because a
      *  50 here reads to the model as a real neutral reading of real indicators

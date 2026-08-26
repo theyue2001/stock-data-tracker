@@ -84,6 +84,11 @@ export function volumeWord(ratio: number): { label: string; color: string } {
  * numbers into a table cell, and only claims a side when the net figure is
  * actually on that side. Dealer flow is reported only when it is the sole
  * active participant, matching the half-weight the score gives it.
+ *
+ * A zero net reads "—", which means a genuinely balanced session and nothing
+ * else. Callers MUST gate on `flowSource !== "none"` before calling: a group
+ * with no print stores its nets as 0 and would otherwise land here, making
+ * "no report" and "the buying netted out" indistinguishable.
  */
 export function institutionWord(
   foreignNet: number,
@@ -111,13 +116,15 @@ export function institutionWord(
   return { label: `${dominant.name}${verb}`, color };
 }
 
-/** Flow-provenance note for the 細產業 tab — an apportioned figure must never
- *  read like a measured print (spec §11). */
+/** Flow-provenance note — an apportioned figure must never read like a
+ *  measured print (spec §11), and a missing one must never read like a
+ *  balanced session. Used by both the 細產業 tab and the industry rows, so the
+ *  "none" wording is not scoped to sub-industries. */
 export const FLOW_SOURCE_NOTE: Record<string, { label: string; title: string } | null> = {
   industry: null,
   stock: null,
   prorated: { label: "推估", title: "此細產業無獨立法人數據，依成交值比例由母產業分攤推估。" },
-  none: { label: "無資料", title: "此細產業本日無法人買賣超資料。" },
+  none: { label: "無資料", title: "本日無法人買賣超資料，此分項未計入加權。" },
 };
 
 /** Sentiment-vs-Heat quadrant (spec §10 Case A-D). Descriptive only — the
