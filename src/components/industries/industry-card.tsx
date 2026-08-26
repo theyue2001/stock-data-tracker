@@ -3,6 +3,7 @@ import { StatusChip } from "@/components/radar/status-chip";
 import { WatchStar } from "@/components/radar/watch-star";
 import {
   INDUSTRY_STATUS_BADGE,
+  LOW_CONFIDENCE_BADGE,
   flowWord,
   fundamentalWord,
   heatBarColor,
@@ -63,7 +64,11 @@ export function IndustryCard({
       <div className="flex items-center gap-2">
         <span className="text-[15px] font-bold">{row.nameZh ?? row.name}</span>
         <WatchStar itemType="industry" targetId={row.id} initialActive={watched} />
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-1.5">
+          {/* Sits next to the status so a reader sees it before the number
+              below: with both data-gated components missing, that number was
+              computed from barely half of what 熱度 is defined as. */}
+          {row.lowConfidence ? <StatusChip badge={LOW_CONFIDENCE_BADGE} compact /> : null}
           <StatusChip badge={badge} />
         </span>
       </div>

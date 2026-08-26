@@ -12,10 +12,12 @@ import { SentimentPanel } from "@/components/sentiment/sentiment-panel";
 import {
   CYCLE_ZH,
   INDUSTRY_STATUS_BADGE,
+  LOW_CONFIDENCE_BADGE,
   RISK_LABEL,
   STOCK_STATUS_BADGE,
   directionColor,
   displayRs,
+  flowWord,
   indicatorDirection,
   trendFromDelta,
 } from "@/lib/radar-ui";
@@ -42,15 +44,22 @@ export default async function IndustryDetailPage({ params }: PageProps<"/industr
 
   // Real market-mainstream label derived from the same component scores that
   // drive the heat score — not authored copy.
+  //
+  // Both labels are a statement ABOUT capital flow, so with no flow print for
+  // the session there is nothing to state. Neither may fall back to a number:
+  // 非主流 and 流出 are both bearish readings, and the absence of a T86 report
+  // is not evidence of either.
+  const capitalFlow = industry.components.capitalFlow;
   const mainstream =
-    industry.components.capitalFlow >= 65 && industry.scoreToday >= 65
-      ? "市場主流"
-      : industry.components.capitalFlow >= 50
-        ? "次主流"
-        : "非主流";
+    capitalFlow === null
+      ? "無資料"
+      : capitalFlow >= 65 && industry.scoreToday >= 65
+        ? "市場主流"
+        : capitalFlow >= 50
+          ? "次主流"
+          : "非主流";
 
-  const flowIntensity = industry.components.capitalFlow >= 70 ? "強勁流入" : industry.components.capitalFlow >= 55 ? "中等流入" : industry.components.capitalFlow >= 45 ? "中性" : "流出";
-  const flowColor = industry.components.capitalFlow >= 55 ? "#ff8a70" : industry.components.capitalFlow >= 45 ? "rgba(243,242,242,.55)" : "#6cc79d";
+  const flow = flowWord(capitalFlow);
 
   return (
     <PageShell>
@@ -61,6 +70,7 @@ export default async function IndustryDetailPage({ params }: PageProps<"/industr
         backLabel="產業雷達"
       >
         <StatusChip badge={badge} />
+        {industry.lowConfidence ? <StatusChip badge={LOW_CONFIDENCE_BADGE} /> : null}
         <WatchStar itemType="industry" targetId={industry.id} initialActive={watchKeys.industryIds.has(industry.id)} size={15} />
       </PageHeader>
 
@@ -77,7 +87,7 @@ export default async function IndustryDetailPage({ params }: PageProps<"/industr
           },
           { label: "趨勢", value: trend.glyph, valueColor: trend.color },
           { label: "主流狀態", value: mainstream },
-          { label: "資金流強度", value: flowIntensity, valueColor: flowColor },
+          { label: "資金流強度", value: flow.label, valueColor: flow.color },
           { label: "循環位置", value: CYCLE_ZH[industry.cyclePosition] ?? industry.cyclePosition },
           { label: "風險等級", value: risk.label, valueColor: risk.color },
         ]}

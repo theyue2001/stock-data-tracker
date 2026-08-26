@@ -5,8 +5,9 @@ import { BreadthBar, BreadthCounts } from "@/components/sentiment/breadth-bar";
 import { RankChange, RankTrend } from "@/components/sentiment/rank-change";
 import { SentimentSpark } from "@/components/sentiment/sentiment-spark";
 import { pct } from "@/lib/format";
-import { directionColor, yiFlow } from "@/lib/radar-ui";
+import { LOW_CONFIDENCE_BADGE, directionColor, yiFlow } from "@/lib/radar-ui";
 import {
+  FLOW_SOURCE_NOTE,
   QUADRANT_META,
   SENTIMENT_STATUS_BADGE,
   institutionWord,
@@ -30,6 +31,8 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
   const trend = sentimentTrendGlyph(panel.scoreDelta);
   const vol = volumeWord(panel.volumeRatio);
   const inst = institutionWord(panel.foreignNet, panel.trustNet, panel.dealerNet);
+  const hasFlow = panel.flowSource !== "none";
+  const flowNote = FLOW_SOURCE_NOTE[panel.flowSource];
   const quadrant = QUADRANT_META[panel.quadrant];
   const barColor = sentimentBarColor(panel.sentimentScore, panel.status);
 
@@ -67,7 +70,10 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
           </div>
 
           <div className="ml-auto flex flex-col items-end gap-1.5">
-            <StatusChip badge={badge} />
+            <span className="flex items-center gap-1.5">
+              {panel.lowConfidence ? <StatusChip badge={LOW_CONFIDENCE_BADGE} compact /> : null}
+              <StatusChip badge={badge} />
+            </span>
             <span className="flex items-center gap-1.5">
               <span className="text-[9.5px] text-[var(--rd-text-muted)]">近 {panel.sentimentTrend.length} 日</span>
               <SentimentSpark points={panel.sentimentTrend} color={barColor} width={72} height={22} />
@@ -106,13 +112,25 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
             </span>
           </Metric>
 
-          <Metric label="法人流向" score={panel.components.institutionalFlowScore}>
-            <span className="text-[12.5px] font-bold" style={{ color: inst.color }}>
-              {inst.label}
-            </span>
-            <span className="tnum ml-1.5 text-[10px] font-semibold" style={{ color: directionColor(panel.foreignNet + panel.trustNet) }}>
-              {yiFlow(panel.foreignNet + panel.trustNet)} 億
-            </span>
+          {/* With no T86 print for the session there are no figures to show:
+              the stored component is an inert 50 and the raw nets are stored as
+              0, so both the word and the 億 figure would assert a balanced
+              session the report never reported. */}
+          <Metric label="法人流向" score={hasFlow ? panel.components.institutionalFlowScore : null}>
+            {hasFlow ? (
+              <>
+                <span className="text-[12.5px] font-bold" style={{ color: inst.color }}>
+                  {inst.label}
+                </span>
+                <span className="tnum ml-1.5 text-[10px] font-semibold" style={{ color: directionColor(panel.foreignNet + panel.trustNet) }}>
+                  {yiFlow(panel.foreignNet + panel.trustNet)} 億
+                </span>
+              </>
+            ) : (
+              <span className="text-[12.5px] font-bold" style={{ color: "rgba(243,242,242,.4)" }} title={flowNote?.title}>
+                {flowNote?.label ?? "無資料"}
+              </span>
+            )}
           </Metric>
 
           <Metric label="相對強度" score={panel.components.relativeStrengthScore}>
@@ -159,15 +177,23 @@ export function SentimentPanel({ panel }: { panel: IndustrySentimentPanel }) {
 
 /** One component reading: zh label, the raw measure, and the 0-100 component
  *  score it normalized to — so a reader can always see how a raw figure fed
- *  the headline number. */
-function Metric({ label, score, children }: { label: string; score: number; children: React.ReactNode }) {
+ *  the headline number.
+ *
+ *  `score === null` means the component had no data and was dropped from the
+ *  weighting, so there is no number to show and the headline was computed
+ *  without it. Rendering the stored filler value here would put a fabricated
+ *  reading next to five real ones. */
+function Metric({ label, score, children }: { label: string; score: number | null; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 py-[7px]" style={{ borderBottom: "1px solid var(--rd-line)" }}>
       <span className="shrink-0 text-[10.5px] font-medium text-[var(--rd-text-muted)]">{label}</span>
       <span className="flex items-baseline gap-1.5 text-right">
         {children}
-        <span className="tnum w-7 shrink-0 text-right font-mono text-[9.5px] text-[rgba(243,242,242,.4)]" title={`${label}分項分數 ${score.toFixed(1)} / 100`}>
-          {score.toFixed(0)}
+        <span
+          className="tnum w-7 shrink-0 text-right font-mono text-[9.5px] text-[rgba(243,242,242,.4)]"
+          title={score === null ? `${label}無資料，未計入氣氛值加權` : `${label}分項分數 ${score.toFixed(1)} / 100`}
+        >
+          {score === null ? "—" : score.toFixed(0)}
         </span>
       </span>
     </div>
