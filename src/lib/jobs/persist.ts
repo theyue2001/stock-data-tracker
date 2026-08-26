@@ -4,6 +4,7 @@ import { utcDay, utcDayOffset } from "@/lib/dates";
 import type {
   FundamentalResult,
   IndicatorResult,
+  IntradayIndexResult,
   InstitutionalFlowResult,
   MarketQuote,
   MarketStatusResult,
@@ -102,6 +103,33 @@ export async function writeMarketStatus(results: MarketStatusResult[], isMock: b
     await db.marketStatus.upsert({
       where: { date: utcDay(r.date) },
       create: { date: utcDay(r.date), ...data },
+      update: data,
+    });
+  }
+  return results.length;
+}
+
+/** Upserts the one intraday index tick per (index, date) — never a per-tick
+ *  insert, since the whole point is "what does the index read RIGHT NOW". */
+export async function writeIntradayIndex(
+  results: IntradayIndexResult[],
+  dataSourceId: string,
+  isMock: boolean,
+): Promise<number> {
+  for (const r of results) {
+    const data = {
+      last: r.last,
+      change: round2(r.change),
+      changePct: round2(r.changePct),
+      high: r.high,
+      low: r.low,
+      tickAt: r.tickAt,
+      dataSourceId,
+      isMock,
+    };
+    await db.intradayIndex.upsert({
+      where: { index_date: { index: r.index, date: utcDay(r.date) } },
+      create: { index: r.index, date: utcDay(r.date), ...data },
       update: data,
     });
   }

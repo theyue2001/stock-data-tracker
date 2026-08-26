@@ -18,6 +18,22 @@ export function utcDayOffset(base: Date, days: number): Date {
   return out;
 }
 
+/**
+ * "Today" as Asia/Taipei sees it, as the same UTC-midnight key every
+ * date-keyed row uses.
+ *
+ * Every provider in this codebase publishes on the Taiwan trading calendar, so
+ * "has today's session landed yet" has to ask what day it is THERE — a job
+ * runner in another timezone (a US-region Vercel function, a CI box) would
+ * otherwise roll the date over up to 16 hours off from the market it is
+ * asking about.
+ */
+export function taipeiToday(): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
+  const [year, month, day] = parts.split("-").map(Number);
+  return utcDay(new Date(Date.UTC(year, month - 1, day)));
+}
+
 /** Formats as YYYY-MM-DD from the UTC parts, matching the storage key. */
 export function utcDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);

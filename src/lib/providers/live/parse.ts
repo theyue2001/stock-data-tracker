@@ -37,6 +37,18 @@ export function rocToDate(value: string): Date | null {
   return rocCompactToDate(value) ?? rocSlashToDate(value);
 }
 
+/** Parses the compact western "20260826" form used by the MIS real-time feed
+ *  (unlike every after-hours report, MIS dates are Gregorian, not ROC). */
+export function westernCompactToDate(value: string): Date | null {
+  const digits = value.trim();
+  if (!/^\d{8}$/.test(digits)) return null;
+  const year = Number(digits.slice(0, 4));
+  const month = Number(digits.slice(4, 6));
+  const day = Number(digits.slice(6, 8));
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return utcDay(new Date(Date.UTC(year, month - 1, day)));
+}
+
 /** Formats a Date as the "YYYYMMDD" query parameter TWSE expects. */
 export function toTwseDateParam(date: Date): string {
   const d = utcDay(date);
