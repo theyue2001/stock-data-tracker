@@ -34,6 +34,10 @@ const HOST_MIN_INTERVAL_MS: Record<string, number> = {
   "mopsov.twse.com.tw": 2000,
   "www.tpex.org.tw": 1500,
   "data.sec.gov": 200,
+  // The real-time quote host, polled once a minute during the session. Stated
+  // explicitly rather than left to FALLBACK_INTERVAL_MS (same value today) so
+  // a future change to that default can't silently retune a live poller.
+  "mis.twse.com.tw": 1000,
 };
 const FALLBACK_INTERVAL_MS = 1000;
 
@@ -174,6 +178,16 @@ interface FetchOptions {
   timeoutMs?: number;
   /** Extra headers; a Referer is required by some TPEx endpoints. */
   headers?: Record<string, string>;
+  /**
+   * Bypasses the response cache below, in both directions.
+   *
+   * Required by any caller polling faster than CACHE_TTL_MS for a value that
+   * genuinely changes at that rate — the real-time quote feed. Without it the
+   * intraday poller running inside the long-lived `npm run cron` process would
+   * re-serve the same 10-minute-old tick for nine of every ten polls, which
+   * looks exactly like the market having gone flat.
+   */
+  noCache?: boolean;
 }
 
 async function fetchTextOnce(url: string, opts: FetchOptions): Promise<string> {
@@ -282,8 +296,10 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const responseCache = new Map<string, { at: number; value: unknown }>();
 
 export async function fetchJson<T>(url: string, opts: FetchOptions = {}): Promise<T> {
-  const cached = responseCache.get(url);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value as T;
+  if (!opts.noCache) {
+    const cached = responseCache.get(url);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value as T;
+  }
 
   const text = await fetchText(url, opts);
   let parsed: T;
@@ -292,7 +308,7 @@ export async function fetchJson<T>(url: string, opts: FetchOptions = {}): Promis
   } catch {
     throw new Error(`Expected JSON from ${url}, got ${text.slice(0, 120)}`);
   }
-  responseCache.set(url, { at: Date.now(), value: parsed });
+  if (!opts.noCache) responseCache.set(url, { at: Date.now(), value: parsed });
   return parsed;
 }
 

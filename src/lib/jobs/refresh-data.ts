@@ -22,7 +22,7 @@ import {
   writeMarketStatus,
   writeStockFlows,
 } from "@/lib/jobs/persist";
-import { utcDay } from "@/lib/dates";
+import { taipeiToday, utcDay } from "@/lib/dates";
 
 export interface RefreshSummary {
   mode: string;
@@ -197,6 +197,22 @@ export async function runRefreshJob(referenceDate: Date = new Date()): Promise<R
   lap("sentiment");
 
   return summary;
+}
+
+/**
+ * True once today's Taipei-calendar session is already stored.
+ *
+ * Lets a caller that is polled on a fixed interval — the serverless
+ * /api/jobs/daily route, hit every 5 minutes while the local process's
+ * in-memory guard isn't available across invocations — skip straight past
+ * every provider fetch once the day's data has landed, instead of re-asking
+ * TWSE for a session it already answered. Stays false all day on a holiday
+ * (there is no session to land), which is a known, accepted cost of the
+ * simple version of this guard: see scripts/cron.ts.
+ */
+export async function hasTodaysSession(): Promise<boolean> {
+  const row = await db.marketStatus.findUnique({ where: { date: taipeiToday() }, select: { date: true } });
+  return !!row;
 }
 
 /** The newest session already stored, used when every provider comes back
