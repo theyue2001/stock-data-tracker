@@ -36,11 +36,10 @@
  * `recompute` will score. A scored session with no institutional-flow row of
  * its own has its capital-flow and institutional-flow components marked as
  * having no data and dropped from the weighting, so a narrower flow window
- * leaves a stretch of scores computed from a reduced definition — flagged
- * 參考性低 in the UI rather than silently fake-neutral, but still a stretch that
- * ends in a step where coverage begins, and the week-over-week status
- * comparison reads that step as a market-wide regime change. Seeding the wider
- * window is free
+ * leaves a stretch of scores computed from a reduced definition — surfaced as
+ * 無資料 rather than as a fake-neutral reading, but still a stretch that ends in
+ * a step where coverage begins, and the week-over-week status comparison reads
+ * that step as a market-wide regime change. Seeding the wider window is free
  * (FinMind returns any date range in one pass per stock); the official
  * catch-up just has more sessions to work through, which costs more runs
  * rather than longer ones. `--flow-sessions=N` pins it back to a recent slice.
@@ -599,8 +598,9 @@ async function recomputeDerived(sessions: SessionCore[]): Promise<void> {
       `[backfill] recompute: WARNING — ${uncovered.length} of ${scored.length} sessions to score ` +
         `(${day(uncovered[0].date)}..${day(uncovered[uncovered.length - 1].date)}) have no institutional flow ` +
         `stored, so their capital-flow and institutional-flow components are marked as having no data and ` +
-        `dropped from the weighting (surfaced as 無資料, and 參考性低 on the total), then step to real values ` +
-        `where coverage begins. Re-run until the flow legs finish, then \`--only=recompute\` to overwrite them.`,
+        `dropped from the weighting (surfaced as 無資料; the heat score additionally reads 參考性低 where the ` +
+        `industry also has no leading indicators), then step to real values where coverage begins. Re-run ` +
+        `until the flow legs finish, then \`--only=recompute\` to overwrite them.`,
     );
   }
 
