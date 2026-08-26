@@ -37,8 +37,9 @@ export function IndicatorExplorer({ rows }: { rows: Row[] }) {
 
       <div className="grid gap-3 sm:grid-cols-2 sm:gap-3.5 xl:grid-cols-3">
         {visible.map((ind) => {
+          const hasData = ind.value != null;
           const improving = ind.pctChange == null ? null : (ind.higherIsBetter ? ind.pctChange : -ind.pctChange) > 0 ? true : ind.pctChange === 0 ? null : false;
-          const badge = indicatorDirection(improving);
+          const badge = indicatorDirection(improving, hasData);
           const color = improving === true ? "#ff5a3d" : improving === false ? "#3dae7c" : "rgba(243,242,242,.55)";
 
           return (
@@ -62,6 +63,14 @@ export function IndicatorExplorer({ rows }: { rows: Row[] }) {
                 </span>
               </div>
               <RdSparkline points={ind.history.map((h) => h.value)} color={color} />
+              {ind.relatedStocks.length > 0 && (
+                <div
+                  className="mt-1.5 truncate text-[9.5px] text-[var(--rd-text-muted)]"
+                  title={ind.relatedStocks.map((s) => `${s.ticker} ${s.name}`).join("、")}
+                >
+                  相關個股 <span className="font-mono">{ind.relatedStocks.map((s) => s.ticker).join(" · ")}</span>
+                </div>
+              )}
               <div className="mt-2 flex font-mono text-[9.5px] text-[rgba(243,242,242,.38)]">
                 <span>{ind.sourceName ?? "—"}</span>
                 <span className="ml-auto">{ind.date ?? "—"}</span>

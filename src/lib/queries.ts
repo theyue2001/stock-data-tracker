@@ -93,6 +93,13 @@ export async function getMarketStatus() {
   const avgVolume5d = prior5.length ? prior5.reduce((sum, h) => sum + h.volume, 0) / prior5.length : latest.volume;
   const volumeVs5dAvgPct = avgVolume5d > 0 ? Math.round(((latest.volume - avgVolume5d) / avgVolume5d) * 1000) / 10 : 0;
 
+  // The index close is always fetched, but the breadth/institutional-flow
+  // bundle is a separate report that can miss a run. Rather than render that
+  // day's defaulted 0 as "flat", fall back to the last session that actually
+  // reported it — see hasMarketStatusDetail.
+  const detail = history.find(hasMarketStatusDetail) ?? latest;
+  const detailStale = detail.date.getTime() !== latest.date.getTime();
+
   return {
     date: latest.date,
     index: latest.index,
@@ -101,12 +108,16 @@ export async function getMarketStatus() {
     changePct: latest.changePct,
     volume: latest.volume,
     volumeVs5dAvgPct,
-    advancers: latest.breadthAdvancers,
-    decliners: latest.breadthDecliners,
-    foreignNet: latest.foreignNet,
-    trustNet: latest.trustNet,
-    dealerNet: latest.dealerNet,
-    marginChange: latest.marginChange,
+    advancers: detail.breadthAdvancers,
+    decliners: detail.breadthDecliners,
+    foreignNet: detail.foreignNet,
+    trustNet: detail.trustNet,
+    dealerNet: detail.dealerNet,
+    marginChange: detail.marginChange,
+    /** Session the breadth/flow figures above actually belong to — differs
+     *  from `date` only when today's bundle wasn't fetched. */
+    detailDate: detail.date.toISOString().slice(0, 10),
+    detailStale,
     priorClose: prior?.close ?? latest.close,
     isMock: latest.isMock,
     sparkline: history.reverse().map((h) => h.close),
@@ -412,14 +423,19 @@ export async function getCapitalFlow() {
     };
   });
 
+  // Same fallback as getMarketStatus: don't render a day the bundle wasn't
+  // fetched as a real "flat" print.
+  const marketDetail = marketFlows.find(hasMarketStatusDetail) ?? marketFlows[0];
+
   return {
     market: marketFlows.length
       ? {
-          date: marketFlows[0].date.toISOString().slice(0, 10),
-          foreignNet: marketFlows[0].foreignNet,
-          trustNet: marketFlows[0].trustNet,
-          dealerNet: marketFlows[0].dealerNet,
-          marginChange: marketFlows[0].marginChange,
+          date: marketDetail.date.toISOString().slice(0, 10),
+          foreignNet: marketDetail.foreignNet,
+          trustNet: marketDetail.trustNet,
+          dealerNet: marketDetail.dealerNet,
+          marginChange: marketDetail.marginChange,
+          stale: marketDetail.date.getTime() !== marketFlows[0].date.getTime(),
           history: [...marketFlows].reverse().map((m) => ({
             date: m.date.toISOString().slice(0, 10),
             foreignNet: m.foreignNet,
@@ -440,7 +456,14 @@ export async function getIndicatorOverview() {
   const indicators = await db.indicator.findMany({
     orderBy: [{ industry: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     include: {
-      industry: true,
+      industry: {
+        include: {
+          // Indicator is 1:1 with Industry, so its industry's constituent
+          // stocks ARE the real "which Taiwan names does this lead" answer —
+          // no separate per-indicator mapping exists or needs inventing.
+          stocks: { select: { ticker: true, name: true, nameZh: true }, orderBy: { ticker: "asc" } },
+        },
+      },
       values: { orderBy: { date: "desc" }, take: 16, include: { dataSource: true } },
     },
   });
@@ -457,6 +480,7 @@ export async function getIndicatorOverview() {
       unit: ind.unit,
       frequency: ind.frequency,
       higherIsBetter: ind.higherIsBetter,
+      relatedStocks: ind.industry.stocks.map((s) => ({ ticker: s.ticker, name: s.nameZh ?? s.name })),
       description: ind.description,
       industryName: ind.industry.nameZh ?? ind.industry.name,
       industrySlug: ind.industry.slug,
@@ -846,6 +870,37 @@ function countStreak<T>(rows: T[], predicate: (row: T) => boolean): number {
 
 function avg(nums: number[]): number {
   return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+}
+
+/**
+ * MarketStatus's breadth + institutional-flow bundle (breadthAdvancers,
+ * breadthDecliners, foreignNet, trustNet, dealerNet, marginChange) is a
+ * separate, rate-limited report from the session's index close, and all six
+ * columns are NOT NULL @default(0) — there is no column that distinguishes
+ * "not fetched" from "genuinely zero" (see the model in schema.prisma). But
+ * on a real trading day these six are fetched together or not at all, and at
+ * least one of them is essentially never exactly zero when they were, so a
+ * row where all six are 0 is the insert-default sentinel, not a session
+ * where nothing moved. Callers use this to skip such rows and fall back to
+ * the last session that actually reported the bundle, rather than rendering
+ * a defaulted 0 as a real "flat" reading.
+ */
+function hasMarketStatusDetail(row: {
+  breadthAdvancers: number;
+  breadthDecliners: number;
+  foreignNet: number;
+  trustNet: number;
+  dealerNet: number;
+  marginChange: number;
+}): boolean {
+  return (
+    row.breadthAdvancers !== 0 ||
+    row.breadthDecliners !== 0 ||
+    row.foreignNet !== 0 ||
+    row.trustNet !== 0 ||
+    row.dealerNet !== 0 ||
+    row.marginChange !== 0
+  );
 }
 function round2(v: number): number {
   return Math.round(v * 100) / 100;

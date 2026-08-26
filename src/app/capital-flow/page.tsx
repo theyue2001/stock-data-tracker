@@ -102,7 +102,7 @@ export default async function CapitalFlowPage() {
                 </>
               ),
               valueColor: directionColor(flow.market.marginChange),
-              sub: `${flow.market.date}`,
+              sub: flow.market.stale ? `${flow.market.date}（非當日，法人資料延遲）` : flow.market.date,
             },
           ]}
         />
