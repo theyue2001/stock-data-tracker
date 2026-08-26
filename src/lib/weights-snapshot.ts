@@ -58,13 +58,20 @@ export function weightParticipated<K extends string>(
 /**
  * Below this share of the weighting, a total score is reported as 參考性低.
  *
- * 0.6 is chosen against the worst realistic case rather than as a round number:
- * the heat score's two data-gated components are leading indicators (25%) and
- * capital flow (20%). Losing indicators alone leaves 0.75, which is a thinner
- * but still meaningful reading; losing both leaves 0.55, at which point more
- * than two fifths of the definition is absent and the number is no longer the
- * score the UI names it as. The threshold sits between those two so the badge
- * appears exactly in the second case.
+ * Calibrated for the HEAT score, and applied only there. 0.6 is chosen against
+ * its worst realistic case rather than as a round number: heat has two
+ * data-gated components, leading indicators (25%) and capital flow (20%).
+ * Losing indicators alone leaves 0.75, which is a thinner but still meaningful
+ * reading; losing both leaves 0.55, at which point more than two fifths of the
+ * definition is absent and the number is no longer the score the UI names it
+ * as. The threshold sits between those two so the badge appears exactly in the
+ * second case.
+ *
+ * Do NOT wire this up to the sentiment score. Sentiment has a single data-gated
+ * component (institutionalFlowWeight, 15%), so its floor is 0.85 — a complete
+ * enough reading to need no warning, and a marker there would never fire.
+ * Sentiment surfaces the missing component as 無資料 on the component itself,
+ * which is the whole of what a reader needs there.
  */
 export const LOW_CONFIDENCE_PARTICIPATION = 0.6;
 

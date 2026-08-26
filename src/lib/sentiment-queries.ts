@@ -5,7 +5,6 @@ import { getRankedSubIndustrySentiment, type FlowSource } from "@/lib/jobs/compu
 import {
   classifyQuadrant,
   sentimentComponentParticipated,
-  sentimentIsLowConfidence,
   type SentimentHeatQuadrant,
 } from "@/lib/sentiment";
 import type { SentimentComponents, SentimentStatus } from "@/lib/types";
@@ -76,9 +75,6 @@ export interface IndustrySentimentRow {
    * the component did not take part, which is exactly the "none" case.
    */
   flowSource: FlowSource;
-  /** True when so much of the weighting was dropped for want of data that
-   *  `sentimentScore` no longer measures what 氣氛值 promises. */
-  lowConfidence: boolean;
 
   /** The medium-term Industry Heat Score, carried alongside for the spec §10
    *  Case A-D comparison. Never blended into the sentiment score. */
@@ -263,7 +259,6 @@ export async function loadIndustrySentimentRows(date: Date): Promise<IndustrySen
       flowSource: sentimentComponentParticipated(s.weightsSnapshot, "institutionalFlowWeight")
         ? "industry"
         : "none",
-      lowConfidence: sentimentIsLowConfidence(s.weightsSnapshot),
 
       heatScore,
       quadrant: classifyQuadrant(s.sentimentScore, heatScore),
