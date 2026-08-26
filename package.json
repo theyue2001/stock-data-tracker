@@ -18,6 +18,7 @@
     "jobs:alerts": "tsx scripts/run-alerts.ts",
     "jobs:brief": "tsx scripts/run-daily-brief.ts",
     "jobs:refresh": "tsx scripts/run-refresh.ts",
+    "jobs:intraday": "tsx scripts/run-intraday.ts",
     "jobs:daily": "tsx scripts/run-daily.ts",
     "cron": "tsx scripts/cron.ts",
     "db:seed:live": "tsx prisma/seed-taxonomy.ts",

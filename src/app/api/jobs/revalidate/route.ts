@@ -15,15 +15,23 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
  *
  * Guarded by the same CRON_SECRET as the other job routes, because it lets a
  * caller force a full re-render of every cached page.
+ *
+ * `?tag=intraday` scopes the expiry to the minute-cadence tag instead of the
+ * default `radarData` — the intraday poller must not bump the `days`-lifetime
+ * tag every run, or every other cached read pays a recompute for a tick only
+ * the TAIEX cell shows. See CACHE_TAGS.intraday.
  */
 export async function POST(request: Request) {
   await connection();
   const auth = authorizeJob(request);
   if (!auth.ok) return auth.response;
 
+  const requested = new URL(request.url).searchParams.get("tag");
+  const tag = requested === "intraday" ? CACHE_TAGS.intraday : CACHE_TAGS.radarData;
+
   // "max" = stale-while-revalidate: keep serving the current dataset while the
   // fresh one renders, rather than making the next visitor wait for it.
-  revalidateTag(CACHE_TAGS.radarData, "max");
+  revalidateTag(tag, "max");
 
-  return ok({ revalidated: CACHE_TAGS.radarData });
+  return ok({ revalidated: tag });
 }

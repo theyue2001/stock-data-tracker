@@ -36,6 +36,7 @@ model DataSource {
   marketData      MarketData[]
   flows           InstitutionalFlow[]
   catalysts       Catalyst[]
+  intradayIndex   IntradayIndex[]
 
   @@map("data_sources")
 }
@@ -467,6 +468,38 @@ model MarketStatus {
   @@map("market_status")
 }
 
+/// Intraday TAIEX level, polled every minute while the market is open.
+///
+/// Deliberately separate from MarketStatus rather than an early write into it:
+/// MarketStatus.close is the SESSION CLOSE that scoring, breadth and flow all
+/// read as "today's price", and every one of those numbers is only valid once
+/// the session has actually settled. A half-day intraday tick written into
+/// that same row would make the scoring job compute against a print that is
+/// still moving. This table is upserted once per (index, date) and only ever
+/// overwritten by the next intraday poll or superseded by the end-of-day
+/// MarketStatus row — it never feeds scores, alerts or the daily brief.
+model IntradayIndex {
+  id           String   @id @default(cuid())
+  date         DateTime
+  index        String   @default("TAIEX")
+  last         Float
+  change       Float
+  changePct    Float
+  high         Float
+  low          Float
+  /// Exchange-reported time of the last tick behind `last`, e.g. "13:30:00".
+  tickAt       String
+  dataSourceId String?
+  isMock       Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id])
+
+  @@unique([index, date])
+  @@map("intraday_index")
+}
+
 // ---------------------------------------------------------------------------
 // Short-term sentiment / momentum (產業氣氛)
 //
@@ -483,17 +516,17 @@ model MarketStatus {
 /// via /api/sentiment-weights without a redeploy, and never hard-coded in
 /// UI components.
 model SentimentWeightConfig {
-  id                       String   @id @default(cuid())
-  name                     String   @unique @default("default")
-  advancingRatioWeight     Float    @default(0.25)
-  averageReturnWeight      Float    @default(0.20)
-  volumeExpansionWeight    Float    @default(0.15)
-  breakoutRatioWeight      Float    @default(0.15)
-  institutionalFlowWeight  Float    @default(0.15)
-  relativeStrengthWeight   Float    @default(0.10)
-  isActive                 Boolean  @default(true)
-  updatedAt                DateTime @updatedAt
-  createdAt                DateTime @default(now())
+  id                      String   @id @default(cuid())
+  name                    String   @unique @default("default")
+  advancingRatioWeight    Float    @default(0.25)
+  averageReturnWeight     Float    @default(0.20)
+  volumeExpansionWeight   Float    @default(0.15)
+  breakoutRatioWeight     Float    @default(0.15)
+  institutionalFlowWeight Float    @default(0.15)
+  relativeStrengthWeight  Float    @default(0.10)
+  isActive                Boolean  @default(true)
+  updatedAt               DateTime @updatedAt
+  createdAt               DateTime @default(now())
 
   @@map("sentiment_weight_configs")
 }
@@ -522,19 +555,19 @@ model IndustrySentimentSnapshot {
   // "1.8x" without re-deriving them, and so a stored score always remains
   // explainable from the same row.
   /// Share of member stocks up today, 0-1.
-  advancingSharePct Float @default(0)
-  advancingCount    Int   @default(0)
-  flatCount         Int   @default(0)
-  decliningCount    Int   @default(0)
-  stockCount        Int   @default(0)
+  advancingSharePct   Float @default(0)
+  advancingCount      Int   @default(0)
+  flatCount           Int   @default(0)
+  decliningCount      Int   @default(0)
+  stockCount          Int   @default(0)
   /// Equal-weighted average daily return of member stocks, in percent.
-  averageReturnPct  Float @default(0)
+  averageReturnPct    Float @default(0)
   /// Session turnover / trailing 20-session average turnover, e.g. 1.8.
-  volumeRatio       Float @default(1)
-  breakoutCount     Int   @default(0)
-  foreignNet        Float @default(0)
-  trustNet          Float @default(0)
-  dealerNet         Float @default(0)
+  volumeRatio         Float @default(1)
+  breakoutCount       Int   @default(0)
+  foreignNet          Float @default(0)
+  trustNet            Float @default(0)
+  dealerNet           Float @default(0)
   /// Industry return minus TAIEX return for the session, in percentage points.
   relativeStrengthPct Float @default(0)
 

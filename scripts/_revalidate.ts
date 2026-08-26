@@ -18,7 +18,7 @@
 
 const ROUTE = "/api/jobs/revalidate";
 
-export async function revalidateDeployedCache(label = "job"): Promise<void> {
+export async function revalidateDeployedCache(label = "job", tag?: "intraday"): Promise<void> {
   const appUrl = process.env.APP_URL?.trim();
 
   if (!appUrl) {
@@ -33,7 +33,8 @@ export async function revalidateDeployedCache(label = "job"): Promise<void> {
   }
 
   const secret = process.env.CRON_SECRET?.trim();
-  const url = `${appUrl.replace(/\/$/, "")}${ROUTE}`;
+  const query = tag ? `?tag=${tag}` : "";
+  const url = `${appUrl.replace(/\/$/, "")}${ROUTE}${query}`;
 
   try {
     const response = await fetch(url, {
