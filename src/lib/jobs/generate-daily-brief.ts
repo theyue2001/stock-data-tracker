@@ -77,7 +77,9 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
       scoreToday,
       scoreWeekAgo: scoreWeek,
       status: ind.scores[0]?.status ?? "neutral",
-      capitalFlowScore: ind.scores[0]?.capitalFlowScore ?? 0,
+      capitalFlowScore: componentParticipated(ind.scores[0]?.weightsSnapshot, "capitalFlowWeight")
+        ? ind.scores[0]?.capitalFlowScore ?? null
+        : null,
       leadingIndicatorScore: componentParticipated(ind.scores[0]?.weightsSnapshot, "leadingIndicatorWeight")
         ? ind.scores[0]?.leadingIndicatorScore ?? null
         : null,

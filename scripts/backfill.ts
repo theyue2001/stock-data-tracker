@@ -34,10 +34,13 @@
  *
  * The flow window is not a short recent slice: it defaults to the whole window
  * `recompute` will score. A scored session with no institutional-flow row of
- * its own gets exactly 50 for its capital-flow and institutional-flow
- * components, so a narrower flow window leaves a flat stretch of fake-neutral
- * scores that ends in a step — and the week-over-week status comparison reads
- * that step as a market-wide regime change. Seeding the wider window is free
+ * its own has its capital-flow and institutional-flow components marked as
+ * having no data and dropped from the weighting, so a narrower flow window
+ * leaves a stretch of scores computed from a reduced definition — flagged
+ * 參考性低 in the UI rather than silently fake-neutral, but still a stretch that
+ * ends in a step where coverage begins, and the week-over-week status
+ * comparison reads that step as a market-wide regime change. Seeding the wider
+ * window is free
  * (FinMind returns any date range in one pass per stock); the official
  * catch-up just has more sessions to work through, which costs more runs
  * rather than longer ones. `--flow-sessions=N` pins it back to a recent slice.
@@ -255,9 +258,9 @@ async function main() {
   // Every session `recompute` scores needs a flow row of its own, so the window
   // defaults to the scored one — the whole calendar less the warm-up — rather
   // than to a short recent slice. Without that, the sessions ahead of the flow
-  // rows get exactly 50 for their two flow components and the first covered
-  // session reads as a market-wide regime change; see recomputeDerived, which
-  // warns when coverage still falls short.
+  // rows lose their two flow components from the weighting and the first
+  // covered session reads as a market-wide regime change; see recomputeDerived,
+  // which warns when coverage still falls short.
   //
   // Both flow legs work from this one list of dates, newest first, so the bulk
   // seed and the official catch-up can never disagree about which sessions the
@@ -590,14 +593,14 @@ async function recomputeDerived(sessions: SessionCore[]): Promise<void> {
   // Said before the pass rather than after, because the pass is slow and this
   // is the one thing an operator must know before trusting its row count: a
   // scored session with no flow row is not a slightly worse row, it is a row
-  // whose two flow components are a hard-coded 50.
+  // scored from a reduced definition with both flow components missing.
   if (uncovered.length) {
     console.warn(
       `[backfill] recompute: WARNING — ${uncovered.length} of ${scored.length} sessions to score ` +
         `(${day(uncovered[0].date)}..${day(uncovered[uncovered.length - 1].date)}) have no institutional flow ` +
-        `stored, so their capitalFlowScore and institutionalFlowScore are written as exactly 50 and step to ` +
-        `real values where coverage begins. Re-run until the flow legs finish, then ` +
-        `\`--only=recompute\` to overwrite them.`,
+        `stored, so their capital-flow and institutional-flow components are marked as having no data and ` +
+        `dropped from the weighting (surfaced as 無資料, and 參考性低 on the total), then step to real values ` +
+        `where coverage begins. Re-run until the flow legs finish, then \`--only=recompute\` to overwrite them.`,
     );
   }
 

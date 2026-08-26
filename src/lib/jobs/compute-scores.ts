@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { getActiveScoreWeights } from "@/lib/score-weights";
 import { classifyIndustryStatus, computeHeatScore } from "@/lib/scoring";
-import { utcDateKey, utcDay, utcDayOffset } from "@/lib/dates";
+import { flowIsCurrent, latestSessionDate, utcDateKey, utcDay, utcDayOffset } from "@/lib/dates";
 import type { ScoreComponents, ScoreWeights } from "@/lib/types";
 
 /**
@@ -143,15 +143,24 @@ export async function computeIndustryScoresForDate(
 
   // Capital flow is scored relative to the other industries on the same day,
   // so it needs a cross-industry pass before any single score is final.
-  const flowTotals = industries.map((ind) => {
+  //
+  // "The session being scored" is the one the industry's own PRICE bars
+  // describe, not the `asOf` this was called with — the same definition
+  // compute-sentiment uses, now shared as `flowIsCurrent` so the two screens
+  // cannot disagree about whether an industry had flow data for a given day.
+  // The T86 report and the price snapshot come from different endpoints on
+  // different lags, and comparing against `asOf` made the heat score treat a
+  // flow row as current on a day the sentiment snapshot correctly called stale.
+  const hasCurrentFlow = industries.map((ind) => {
+    const sessionDate = latestSessionDate(ind.stocks.map((s) => s.marketData[0]?.date));
+    return flowIsCurrent(ind.flows[0]?.date, sessionDate);
+  });
+  // Zero for a missing row and zero for a genuinely balanced session are
+  // different facts, so participation is tracked separately above rather than
+  // inferred from `flowTotals[i] === 0`.
+  const flowTotals = industries.map((ind, i) => {
     const f = ind.flows[0];
-    // Only a row actually dated to the session being scored counts, which is
-    // the same check compute-sentiment's flowIsCurrent makes before it reports
-    // a flow figure. The T86 report can be missing or dated a session behind
-    // the price snapshot it is aggregated against, and without this the newest
-    // stored row — yesterday's — would be scored as today's net buying, while
-    // the sentiment snapshot for the same date correctly says there is none.
-    if (!f || utcDateKey(f.date) !== utcDateKey(asOf)) return 0;
+    if (!f || !hasCurrentFlow[i]) return 0;
     return f.foreignNet + f.trustNet;
   });
   const flowMax = Math.max(1, ...flowTotals.map(Math.abs));
@@ -209,14 +218,25 @@ export async function computeIndustryScoresForDate(
     // not participate, and what the UI reads to show 無資料 instead of a number.
     const hasLeadingIndicators = momenta.length > 0;
     const leadingIndicatorScore = hasLeadingIndicators ? squash(avg(momenta), LEADING_INDICATOR_SCALE) : 50;
-    const effectiveWeights: ScoreWeights = hasLeadingIndicators
-      ? weights
-      : { ...weights, leadingIndicatorWeight: 0 };
 
     // --- Capital flow: normalized net institutional buying ----------------
     // Already bounded to -1..1 by the cross-industry normalization, so a
     // linear mapping is appropriate here.
-    const capitalFlowScore = clamp(50 + (flowTotals[i] / flowMax) * 45, 0, 100);
+    //
+    // With no T86 print for the session the component is EXCLUDED from the
+    // weighting for exactly the reason the leading-indicator block above gives:
+    // `flowTotals[i]` is 0 and the mapping lands on precisely 50, so 20% of the
+    // weight was being spent on a constant while the UI presented it as a real
+    // 中性 reading of institutional flow. Absence of a report is not evidence of
+    // balanced buying, and it is not evidence of selling either — which is why
+    // the stored component stays at the inert 50 rather than dropping to 0.
+    const capitalFlowScore = hasCurrentFlow[i] ? clamp(50 + (flowTotals[i] / flowMax) * 45, 0, 100) : 50;
+
+    const effectiveWeights: ScoreWeights = {
+      ...weights,
+      ...(hasLeadingIndicators ? {} : { leadingIndicatorWeight: 0 }),
+      ...(hasCurrentFlow[i] ? {} : { capitalFlowWeight: 0 }),
+    };
 
     // --- Technical: trend participation + relative strength ---------------
     const perStock = ind.stocks.map((s) => classifyStockTechnicals(s.marketData, marketReturn));

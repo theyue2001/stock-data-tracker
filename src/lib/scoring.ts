@@ -1,4 +1,5 @@
 import type { IndustryStatus, ScoreComponents, ScoreWeights } from "@/lib/types";
+import { isLowConfidence, parseWeightRecord, weightParticipated } from "@/lib/weights-snapshot";
 
 // Default weights per spec §6. Never hard-code these into UI — always read
 // through ScoreWeightConfig (see src/lib/db-config.ts) and fall back to this
@@ -10,6 +11,14 @@ export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
   technicalWeight: 0.15,
   catalystWeight: 0.1,
 };
+
+export const SCORE_WEIGHT_FIELDS = [
+  "fundamentalWeight",
+  "leadingIndicatorWeight",
+  "capitalFlowWeight",
+  "technicalWeight",
+  "catalystWeight",
+] as const;
 
 /**
  * Industry Heat Score =
@@ -45,45 +54,38 @@ export function computeHeatScore(components: ScoreComponents, weights: ScoreWeig
  *  Returns null when it is missing or unparseable — callers must treat that as
  *  "unknown", never as zero. */
 export function parseWeightsSnapshot(snapshot: string | null | undefined): ScoreWeights | null {
-  if (!snapshot) return null;
-  try {
-    const parsed = JSON.parse(snapshot) as Partial<ScoreWeights>;
-    const keys: Array<keyof ScoreWeights> = [
-      "fundamentalWeight",
-      "leadingIndicatorWeight",
-      "capitalFlowWeight",
-      "technicalWeight",
-      "catalystWeight",
-    ];
-    if (keys.some((k) => typeof parsed[k] !== "number")) return null;
-    return parsed as ScoreWeights;
-  } catch {
-    return null;
-  }
+  return parseWeightRecord(snapshot, SCORE_WEIGHT_FIELDS);
 }
 
 /**
- * Whether a component actually contributed to a stored total score.
+ * Whether a heat-score component actually contributed to a stored total.
  *
  * compute-scores.ts zeroes a component's weight for the rows where it had no
  * input data, so a zero in the snapshot means "this component is not part of
  * this score" and the stored component value is inert filler that must not be
- * displayed as a reading.
+ * displayed as a reading. Two components are gated this way: leading indicators
+ * (no licensed series imported) and capital flow (no T86 print for the session).
  *
- * Two cases deliberately read the same way. A weight the operator themselves
- * set to zero in ScoreWeightConfig also reports false here — correct as far as
- * the score goes, since a zero-weighted component genuinely drives nothing,
- * even though a UI saying "no data" is a slightly wrong explanation of a
- * deliberate opt-out. And rows written before the weighting change carry the
- * full configured weights, so they report true: their totals really were
- * computed with the component included, and rewriting that history from here
- * would be a lie in the other direction. Re-run the scoring pass to update
- * them.
+ * See `weightParticipated` for how an unreadable snapshot and an
+ * operator-zeroed weight are handled.
  */
 export function componentParticipated(snapshot: string | null | undefined, key: keyof ScoreWeights): boolean {
-  const weights = parseWeightsSnapshot(snapshot);
-  if (!weights) return true;
-  return weights[key] > 0;
+  return weightParticipated(snapshot, SCORE_WEIGHT_FIELDS, key);
+}
+
+/**
+ * Whether a stored heat score rests on too little of its own definition to be
+ * read at face value.
+ *
+ * Both data-gated components can be absent at once — most industries have no
+ * indicator series at all, and a missing T86 print drops capital flow for every
+ * industry on that session — which leaves the "產業熱度" number computed from
+ * fundamentals, technicals and catalysts alone. Renormalizing keeps it on a
+ * 0-100 scale, but it is no longer measuring what the label promises, and
+ * without a marker that substitution is invisible to the reader.
+ */
+export function scoreIsLowConfidence(snapshot: string | null | undefined): boolean {
+  return isLowConfidence(snapshot, SCORE_WEIGHT_FIELDS);
 }
 
 /**
