@@ -4,6 +4,7 @@ import type { DailyBriefContext, DailyBriefOutput } from "@/lib/ai/types";
 // Uncached variants: this job runs as a standalone tsx script, outside the
 // Next.js runtime where `"use cache"` / cacheLife() are available.
 import { loadIndustryMomentum, loadSentimentBriefHighlights, type IndustrySentimentRow } from "@/lib/sentiment-queries";
+import { componentParticipated } from "@/lib/scoring";
 import { SENTIMENT_STATUS_LABEL } from "@/lib/types";
 import { utcDay, utcDayOffset } from "@/lib/dates";
 
@@ -77,7 +78,9 @@ export async function runDailyBriefJob(referenceDate: Date = new Date()) {
       scoreWeekAgo: scoreWeek,
       status: ind.scores[0]?.status ?? "neutral",
       capitalFlowScore: ind.scores[0]?.capitalFlowScore ?? 0,
-      leadingIndicatorScore: ind.scores[0]?.leadingIndicatorScore ?? 0,
+      leadingIndicatorScore: componentParticipated(ind.scores[0]?.weightsSnapshot, "leadingIndicatorWeight")
+        ? ind.scores[0]?.leadingIndicatorScore ?? null
+        : null,
     };
   });
 

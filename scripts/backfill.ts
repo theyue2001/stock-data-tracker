@@ -83,6 +83,7 @@ import {
   DerivedOdmRevenueProvider,
   SecHyperscalerCapexProvider,
 } from "../src/lib/providers/live/indicator-provider";
+import { revalidateDeployedCache } from "./_revalidate";
 
 type Leg =
   | "sessions"
@@ -330,6 +331,13 @@ async function main() {
 
   console.log(`[backfill] spent ${requestsMade(TWSE_HOST)}/${opts.maxRequests} requests to ${TWSE_HOST}`);
   await report(from, to, opts, flowTarget, blocked);
+
+  // This script rewrites the widest slice of exactly what the cached page reads
+  // serve, so it is the LAST place that should be left out of the invalidation
+  // the daily jobs already do. Without this, a backfill lands in the database
+  // and the deployed site keeps serving the pre-backfill dataset for up to a
+  // day. Never throws, and no-ops when APP_URL is unset — see _revalidate.ts.
+  await revalidateDeployedCache("backfill");
 }
 
 /** Drops tickers that are not listed on either board — merged or delisted. */

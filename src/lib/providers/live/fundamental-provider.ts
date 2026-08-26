@@ -165,11 +165,12 @@ export class MopsFundamentalProvider implements FundamentalProvider {
       out.push({
         ticker,
         period: `${rocYear + 1911}Q${quarter}`,
-        // Kept as "quarterly_eps" despite the year-to-date semantics because
-        // this string is the read key in queries.ts and part of the row's
-        // unique key; renaming it here alone would drop the EPS column rather
-        // than relabel it. The honest wording belongs on the display header.
-        periodType: "quarterly_eps",
+        // "ytd_eps", never "quarterly_eps": the figures above are cumulative,
+        // so the type name has to say so. It is also the read key in queries.ts
+        // and part of the row's unique key, which is why renaming it required a
+        // data migration to relabel the already-stored rows in the same step
+        // (prisma/migrations/…_rename_quarterly_eps_to_ytd_eps).
+        periodType: "ytd_eps",
         value: parseNumber(row.稅後淨利) ?? 0, // year-to-date net income, NT$ thousands
         eps,
       });

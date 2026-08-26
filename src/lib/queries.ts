@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/lib/db";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { utcDay, utcDayOffset } from "@/lib/dates";
-import { scoreChangeTrend } from "@/lib/scoring";
+import { componentParticipated, scoreChangeTrend } from "@/lib/scoring";
 import type { IndustryStatus, RiskLevel, StockStatus, TechnicalTrend, ValuationPosition } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -25,7 +25,11 @@ export interface IndustryRadarRow {
   trend: "up" | "down" | "flat";
   components: {
     fundamental: number;
-    leadingIndicator: number;
+    /** null when the industry had no usable indicator series, in which case the
+     *  component was dropped from the weighting rather than scored as neutral
+     *  (see compute-scores.ts). Nullable so no display site can silently render
+     *  the inert stored 50 as a real reading. */
+    leadingIndicator: number | null;
     capitalFlow: number;
     technical: number;
     catalyst: number;
@@ -62,8 +66,8 @@ export interface StockRadarRow {
   revenueYoy: number | null;
   revenueMomChangePct: number | null;
   /** Year-to-date basic EPS as filed (t187ap14 is cumulative from January and
-   *  resets at Q1), NOT a single quarter. Stored under periodType
-   *  "quarterly_eps" for historical reasons; every display site says 累計. */
+   *  resets at Q1), NOT a single quarter. Stored under periodType "ytd_eps";
+   *  every display site says 累計. */
   eps: number | null;
   technicalTrend: TechnicalTrend;
   relativeStrength: number | null;
@@ -158,7 +162,9 @@ export async function getIndustryRadar(): Promise<IndustryRadarRow[]> {
       trend: scoreChangeTrend(scoreToday, scoreWeekAgo),
       components: {
         fundamental: latest?.fundamentalScore ?? 0,
-        leadingIndicator: latest?.leadingIndicatorScore ?? 0,
+        leadingIndicator: componentParticipated(latest?.weightsSnapshot, "leadingIndicatorWeight")
+          ? latest?.leadingIndicatorScore ?? 0
+          : null,
         capitalFlow: latest?.capitalFlowScore ?? 0,
         technical: latest?.technicalScore ?? 0,
         catalyst: latest?.catalystScore ?? 0,
@@ -241,7 +247,9 @@ export async function getIndustryDetail(slug: string) {
     scoreWeekAgo: weekAgoScore?.totalScore ?? 0,
     components: {
       fundamental: latest?.fundamentalScore ?? 0,
-      leadingIndicator: latest?.leadingIndicatorScore ?? 0,
+      leadingIndicator: componentParticipated(latest?.weightsSnapshot, "leadingIndicatorWeight")
+        ? latest?.leadingIndicatorScore ?? 0
+        : null,
       capitalFlow: latest?.capitalFlowScore ?? 0,
       technical: latest?.technicalScore ?? 0,
       catalyst: latest?.catalystScore ?? 0,
@@ -251,7 +259,9 @@ export async function getIndustryDetail(slug: string) {
       date: s.date.toISOString().slice(0, 10),
       total: s.totalScore,
       fundamental: s.fundamentalScore,
-      leadingIndicator: s.leadingIndicatorScore,
+      leadingIndicator: componentParticipated(s.weightsSnapshot, "leadingIndicatorWeight")
+        ? s.leadingIndicatorScore
+        : null,
       capitalFlow: s.capitalFlowScore,
       technical: s.technicalScore,
       catalyst: s.catalystScore,
@@ -761,7 +771,7 @@ type StockWithRelations = {
 function toStockRow(s: StockWithRelations, industryName: string, industrySlug: string): StockRadarRow {
   const md = s.marketData[0];
   const revenue = s.fundamentals.find((f) => f.periodType === "monthly_revenue");
-  const epsRow = s.fundamentals.find((f) => f.periodType === "quarterly_eps");
+  const epsRow = s.fundamentals.find((f) => f.periodType === "ytd_eps");
   const buyStreak = countStreak(s.flows, (f) => f.foreignNet > 0);
   const sellStreak = countStreak(s.flows, (f) => f.foreignNet < 0);
 

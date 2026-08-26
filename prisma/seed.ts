@@ -389,7 +389,7 @@ async function main() {
           data: {
             stockId: stock.id,
             period,
-            periodType: "quarterly_eps",
+            periodType: "ytd_eps",
             value: eps,
             eps,
             yoyChangePct: Math.round((stockBias * between(8, 55) + between(-12, 12)) * 10) / 10,

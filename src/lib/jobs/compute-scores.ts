@@ -90,6 +90,14 @@ function squash(signal: number, scale: number): number {
 interface IndustryScoreResult {
   industryId: string;
   components: ScoreComponents;
+  /**
+   * The weighting `totalScore` was ACTUALLY computed with, which is not always
+   * the configured one: a component with no input data is dropped by zeroing
+   * its weight (see the leading-indicator block below). This is what gets
+   * snapshotted onto the row, so `weightsSnapshot` doubles as the record of
+   * which components took part — see `componentParticipated` in scoring.ts.
+   */
+  weights: ScoreWeights;
   totalScore: number;
   status: string;
 }
@@ -184,7 +192,26 @@ export async function computeIndustryScoresForDate(
         return indicator.higherIsBetter ? annualized : -annualized;
       })
       .filter((v): v is number => v !== null);
-    const leadingIndicatorScore = squash(avg(momenta), LEADING_INDICATOR_SCALE);
+
+    // An industry with no usable series must be EXCLUDED from the weighting,
+    // not scored as neutral. `avg([])` is 0 and squash(0) is exactly 50, so
+    // until licensed indicator data is imported almost every industry scored a
+    // flat 50 here — 25% of the weight spent on a constant. That does not just
+    // add noise: it pulls every total toward the middle by a quarter of its
+    // range, compressing the spread the ranking is supposed to expose, and the
+    // UI presented the 50 as a genuine "持平" reading of real indicators.
+    //
+    // computeHeatScore divides by the weight sum, so zeroing this weight
+    // renormalizes the others automatically and the total becomes the honest
+    // weighted average of the components that do have data. The stored
+    // component stays 50 (the column is NOT NULL and a 0 would read as
+    // bearish); the zeroed weight in weightsSnapshot is the record that it did
+    // not participate, and what the UI reads to show 無資料 instead of a number.
+    const hasLeadingIndicators = momenta.length > 0;
+    const leadingIndicatorScore = hasLeadingIndicators ? squash(avg(momenta), LEADING_INDICATOR_SCALE) : 50;
+    const effectiveWeights: ScoreWeights = hasLeadingIndicators
+      ? weights
+      : { ...weights, leadingIndicatorWeight: 0 };
 
     // --- Capital flow: normalized net institutional buying ----------------
     // Already bounded to -1..1 by the cross-industry normalization, so a
@@ -251,7 +278,8 @@ export async function computeIndustryScoresForDate(
     return {
       industryId: ind.id,
       components,
-      totalScore: computeHeatScore(components, weights),
+      weights: effectiveWeights,
+      totalScore: computeHeatScore(components, effectiveWeights),
       status: "neutral", // set by the caller, which knows the prior week's score
     };
   });
@@ -264,9 +292,13 @@ export async function persistIndustryScoresForDate(asOfInput: Date): Promise<num
   const weights = await getActiveScoreWeights();
   const results = await computeIndustryScoresForDate(asOf, weights);
   const weekAgo = utcDayOffset(asOf, 7);
-  const snapshot = JSON.stringify(weights);
 
   for (const r of results) {
+    // Per row, not one snapshot for the batch: an industry whose components
+    // could not all be computed was scored on a reduced weighting, and storing
+    // the configured weighting instead would claim a total that this row's own
+    // numbers cannot reproduce.
+    const snapshot = JSON.stringify(r.weights);
     const prior = await db.industryScore.findFirst({
       where: { industryId: r.industryId, date: { lte: weekAgo } },
       orderBy: { date: "desc" },

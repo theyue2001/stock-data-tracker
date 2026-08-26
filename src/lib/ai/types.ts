@@ -20,7 +20,11 @@ export interface DailyBriefContext {
     scoreWeekAgo: number;
     status: string;
     capitalFlowScore: number;
-    leadingIndicatorScore: number;
+    /** null when the industry has no indicator series, so the component was
+     *  excluded from its heat score. Nullable rather than defaulted, because a
+     *  50 here reads to the model as a real neutral reading of real indicators
+     *  and it will narrate one. */
+    leadingIndicatorScore: number | null;
   }>;
   indicatorChanges: Array<{
     industryName: string;

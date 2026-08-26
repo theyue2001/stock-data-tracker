@@ -88,7 +88,12 @@ export function flowWord(score: number): { label: string; color: string } {
   return { label: "強力流出", color: "#6cc79d" };
 }
 
-export function leadingIndicatorWord(score: number): { label: string; color: string } {
+/** `null` means the industry has no usable indicator series, so the component
+ *  was excluded from its heat score entirely (see compute-scores.ts). It reads
+ *  as 無資料 rather than 持平: the two are indistinguishable on the number alone,
+ *  and calling an absent series "flat" invents a reading the data never gave. */
+export function leadingIndicatorWord(score: number | null): { label: string; color: string } {
+  if (score === null) return { label: "無資料", color: "rgba(243,242,242,.4)" };
   if (score >= 60) return { label: "改善中", color: "#ff8a70" };
   if (score >= 45) return { label: "持平", color: "rgba(243,242,242,.55)" };
   return { label: "轉弱", color: "#6cc79d" };

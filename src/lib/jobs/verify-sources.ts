@@ -92,7 +92,7 @@ export async function runSourceVerification(): Promise<VerificationResult> {
     await check("fundamentals", async () => {
       const rows = await new MopsFundamentalProvider().fetchLatest(stocks);
       const revenue = rows.filter((r) => r.periodType === "monthly_revenue");
-      const eps = rows.filter((r) => r.periodType === "quarterly_eps");
+      const eps = rows.filter((r) => r.periodType === "ytd_eps");
       return {
         name: "fundamentals",
         ok: revenue.length > stocks.length * 0.5 && eps.length > 0,

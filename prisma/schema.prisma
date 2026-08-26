@@ -254,12 +254,15 @@ model MarketData {
   @@map("market_data")
 }
 
-/// Revenue / EPS style fundamentals, monthly or quarterly.
+/// Revenue / EPS style fundamentals: monthly revenue, or year-to-date EPS.
 model StockFundamental {
   id           String   @id @default(cuid())
   stockId      String
-  period       String // "2026-07" (monthly revenue) or "2026Q2" (quarterly EPS)
-  periodType   String // "monthly_revenue" | "quarterly_eps"
+  /// "2026-07" (monthly revenue) or "2026Q2" (year-to-date EPS through the
+  /// quarter the statement closes — MOPS files these cumulatively from January,
+  /// so only a Q1 row is ever a single quarter).
+  period       String
+  periodType   String // "monthly_revenue" | "ytd_eps"
   value        Float
   yoyChangePct Float?
   momChangePct Float?
