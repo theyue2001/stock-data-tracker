@@ -114,8 +114,9 @@ export default async function IndustryDetailPage({ params }: PageProps<"/industr
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {industry.indicators.map((ind) => {
+                const hasData = ind.value != null;
                 const improving = ind.pctChange == null ? null : (ind.higherIsBetter ? ind.pctChange : -ind.pctChange) > 0 ? true : ind.pctChange === 0 ? null : false;
-                const dbadge = indicatorDirection(improving);
+                const dbadge = indicatorDirection(improving, hasData);
                 const color = improving === true ? "#ff5a3d" : improving === false ? "#3dae7c" : "rgba(243,242,242,.55)";
                 return (
                   <div key={ind.id} className="rd-card p-3 sm:p-3.5" style={{ background: "var(--rd-card-hover)" }}>
