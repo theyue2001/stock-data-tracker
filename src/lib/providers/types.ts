@@ -148,10 +148,12 @@ export interface MarketStatusProvider {
 
 export interface FundamentalResult {
   ticker: string;
-  /** "2026-07" for monthly revenue, "2026Q2" for quarterly EPS. */
+  /** "2026-07" for monthly revenue, "2026Q2" for a year-to-date EPS row —
+   *  which names the quarter the statement CLOSES, not a quarter in isolation. */
   period: string;
-  periodType: "monthly_revenue" | "quarterly_eps";
-  /** Revenue in NT$ thousands, or net income for a quarterly row. */
+  periodType: "monthly_revenue" | "ytd_eps";
+  /** Revenue in NT$ thousands for a monthly row, or year-to-date net income
+   *  (cumulative from January) for a "ytd_eps" row. */
   value: number;
   yoyChangePct?: number | null;
   momChangePct?: number | null;

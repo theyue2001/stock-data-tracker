@@ -1,0 +1,12 @@
+-- Relabels the year-to-date EPS rows that were stored under the wrong periodType.
+--
+-- MOPS t187ap14 publishes basic EPS cumulatively from January and resets at Q1,
+-- so a "2026Q2" row carries Jan-Jun. Those rows were written as "quarterly_eps",
+-- which asserted the opposite. This is a pure relabel: no value is touched, and
+-- `period` already meant "the quarter the statement closes".
+--
+-- `periodType` is part of @@unique([stockId, period, periodType]), so this UPDATE
+-- could only collide with an existing 'ytd_eps' row for the same (stockId, period).
+-- None exist, since the name is introduced here. The WHERE clause also makes a
+-- re-run a no-op.
+UPDATE "stock_fundamentals" SET "periodType" = 'ytd_eps' WHERE "periodType" = 'quarterly_eps';

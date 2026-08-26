@@ -41,6 +41,51 @@ export function computeHeatScore(components: ScoreComponents, weights: ScoreWeig
   return Math.round(Math.min(100, Math.max(0, total)) * 10) / 10;
 }
 
+/** Reads back the `weightsSnapshot` string stored on an IndustryScore row.
+ *  Returns null when it is missing or unparseable — callers must treat that as
+ *  "unknown", never as zero. */
+export function parseWeightsSnapshot(snapshot: string | null | undefined): ScoreWeights | null {
+  if (!snapshot) return null;
+  try {
+    const parsed = JSON.parse(snapshot) as Partial<ScoreWeights>;
+    const keys: Array<keyof ScoreWeights> = [
+      "fundamentalWeight",
+      "leadingIndicatorWeight",
+      "capitalFlowWeight",
+      "technicalWeight",
+      "catalystWeight",
+    ];
+    if (keys.some((k) => typeof parsed[k] !== "number")) return null;
+    return parsed as ScoreWeights;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a component actually contributed to a stored total score.
+ *
+ * compute-scores.ts zeroes a component's weight for the rows where it had no
+ * input data, so a zero in the snapshot means "this component is not part of
+ * this score" and the stored component value is inert filler that must not be
+ * displayed as a reading.
+ *
+ * Two cases deliberately read the same way. A weight the operator themselves
+ * set to zero in ScoreWeightConfig also reports false here — correct as far as
+ * the score goes, since a zero-weighted component genuinely drives nothing,
+ * even though a UI saying "no data" is a slightly wrong explanation of a
+ * deliberate opt-out. And rows written before the weighting change carry the
+ * full configured weights, so they report true: their totals really were
+ * computed with the component included, and rewriting that history from here
+ * would be a lie in the other direction. Re-run the scoring pass to update
+ * them.
+ */
+export function componentParticipated(snapshot: string | null | undefined, key: keyof ScoreWeights): boolean {
+  const weights = parseWeightsSnapshot(snapshot);
+  if (!weights) return true;
+  return weights[key] > 0;
+}
+
 /**
  * Classifies an industry's status from its current score and the
  * week-over-week change. Thresholds are intentionally simple/tunable.
