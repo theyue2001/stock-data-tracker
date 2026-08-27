@@ -22,7 +22,8 @@ import {
   writeMarketStatus,
   writeStockFlows,
 } from "@/lib/jobs/persist";
-import { taipeiToday, utcDay } from "@/lib/dates";
+import { utcDay } from "@/lib/dates";
+import { latestSessionDate } from "@/lib/providers/live/market-status-provider";
 
 export interface RefreshSummary {
   mode: string;
@@ -200,19 +201,54 @@ export async function runRefreshJob(referenceDate: Date = new Date()): Promise<R
 }
 
 /**
- * True once today's Taipei-calendar session is already stored.
+ * True when the newest session TWSE has actually PUBLISHED is already stored,
+ * i.e. there is nothing new to fetch.
  *
- * Lets a caller that is polled on a fixed interval — the serverless
- * /api/jobs/daily route, hit every 5 minutes while the local process's
- * in-memory guard isn't available across invocations — skip straight past
- * every provider fetch once the day's data has landed, instead of re-asking
- * TWSE for a session it already answered. Stays false all day on a holiday
- * (there is no session to land), which is a known, accepted cost of the
- * simple version of this guard: see scripts/cron.ts.
+ * The question is deliberately not "is today's session stored". Today's may
+ * not exist yet and may not exist for hours: the whole-market snapshot the
+ * pipeline resolves its session from is regenerated in TWSE's nightly batch
+ * and still serves session D at around 05:20 Taipei on D+1. Asking about the
+ * wall-clock day therefore answers "no" all evening on every trading day, so
+ * a 5-minute poll would re-run the FULL pipeline ~126 times between 13:30 and
+ * midnight — against the host that IP-blocks a client for sustained iteration
+ * (see providers/live/http.ts). Asking what has been published instead makes
+ * the poll a no-op except on the one run that has something new to store.
+ *
+ * It also closes a split-session hole. TPEx publishes ahead of the TWSE
+ * mirror, so a run started in that window sees session D from one exchange
+ * and D-1 from the other, and `session` below resolves to D — writing prices
+ * for the 16 TPEx names, none for the 39 TWSE ones, and then scoring D off
+ * that. Gating on the TWSE date keeps the pipeline out of that window
+ * entirely.
+ *
+ * Costs one request to openapi.twse.com.tw, which is the sanctioned API and
+ * is not rate-limited, rather than to the interactive host.
  */
-export async function hasTodaysSession(): Promise<boolean> {
-  const row = await db.marketStatus.findUnique({ where: { date: taipeiToday() }, select: { date: true } });
-  return !!row;
+export async function latestPublishedSessionStored(): Promise<boolean> {
+  // Mock mode has no live feed to ask, and no rate limit to respect.
+  if (dataMode !== "live") return false;
+
+  const published = await latestSessionDate();
+  // Feed unreachable: let the run proceed rather than skipping on an
+  // unanswered question — a failed fetch must not look like "nothing new".
+  if (!published) return false;
+
+  const day = utcDay(published);
+  const [status, quotes, tracked] = await Promise.all([
+    db.marketStatus.findUnique({ where: { date: day }, select: { date: true } }),
+    db.marketData.count({ where: { date: day } }),
+    db.stock.count(),
+  ]);
+
+  // Presence of the MarketStatus row alone is NOT enough to call the session
+  // stored. It is written by step 1 of the pipeline and prices by step 2, so a
+  // run that dies in between leaves a row that would satisfy a naive check and
+  // freeze the half-written session in place forever — the guard would skip
+  // every subsequent run that could have repaired it. Requiring most of the
+  // prices too means an interrupted run is retried rather than enshrined.
+  // The 80% floor matches what verify-sources.ts treats as a healthy pull;
+  // a stock can legitimately miss a session (suspension, no trade).
+  return !!status && quotes >= tracked * 0.8;
 }
 
 /** The newest session already stored, used when every provider comes back

@@ -27,7 +27,7 @@
  * from outside".
  */
 import cron from "node-cron";
-import { hasTodaysSession, runRefreshJob } from "../src/lib/jobs/refresh-data";
+import { latestPublishedSessionStored, runRefreshJob } from "../src/lib/jobs/refresh-data";
 import { runAlertEngine } from "../src/lib/jobs/generate-alerts";
 import { runDailyBriefJob } from "../src/lib/jobs/generate-daily-brief";
 import { runIntradayRefreshJob } from "../src/lib/jobs/refresh-intraday";
@@ -70,11 +70,11 @@ async function runPipeline() {
   }
 }
 
-/** hasTodaysSession is the same DB-state guard the serverless route uses —
- *  see its doc comment for why it's the source of truth rather than an
- *  in-memory flag: it stays correct across a restart of this process too. */
+/** Same guard the serverless route uses — see its doc comment for why the
+ *  question is "has the newest PUBLISHED session been stored" rather than
+ *  "has today's", and why that is what keeps a 5-minute poll cheap. */
 async function checkAndRunPipeline() {
-  if (await hasTodaysSession()) return;
+  if (await latestPublishedSessionStored()) return;
   await runPipeline();
 }
 
