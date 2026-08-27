@@ -351,11 +351,14 @@ npm run verify:sources # read-only: confirm every live feed still parses
   codebase with anything new to say mid-session; everything else reads an
   after-hours report.
 - **Pipeline check** — every 5 minutes, 13:31–23:59 Asia/Taipei, Mon–Fri. Runs
-  the full refresh → alerts → brief pipeline the first time today's session
-  has actually landed at TWSE, and is a no-op on every check after that (see
-  `hasTodaysSession` in `src/lib/jobs/refresh-data.ts`). This is what makes
-  5-minute polling safe: it is a fetch attempt only until the first one
-  succeeds each day, not 120-some full pipeline runs.
+  the full refresh → alerts → brief pipeline only when TWSE has published a
+  session that is not stored yet, and is a no-op otherwise (see
+  `latestPublishedSessionStored` in `src/lib/jobs/refresh-data.ts`). This is
+  what makes 5-minute polling safe. Note it asks what has been **published**,
+  not whether *today's* session exists: the whole-market snapshot lags into the
+  next morning, so a wall-clock question answers "no" all evening and turns the
+  poll into ~126 full pipeline runs against a host that IP-blocks for exactly
+  that.
 
 ### Driving the jobs from outside
 
@@ -398,10 +401,16 @@ Both endpoints are safe to call on that schedule, and safe to over-call:
   tick and the job writes nothing; on a holiday it returns the *last* session's
   tick, which lands on that session's own row and so never renders as today's
   intraday badge (see `getIntradayIndex`).
-- `/api/jobs/daily` is a no-op once today's session is stored — see
-  `hasTodaysSession`. Note the asymmetry with the local scheduler: this route
-  re-derives that from the database on every call, because each serverless
-  invocation is a fresh process with no memory of an earlier success.
+- `/api/jobs/daily` is a no-op unless TWSE has published a session that is not
+  stored yet — see `latestPublishedSessionStored`. It costs one request to the
+  non-rate-limited `openapi.twse.com.tw` to decide. This route re-derives that
+  from the database on every call, because each serverless invocation is a
+  fresh process with no memory of an earlier success.
+
+  The same check keeps the pipeline out of the window where TPEx has published
+  a session and the TWSE mirror has not: running then stores prices for the 16
+  TPEx names, none for the 39 TWSE ones, and scores the session off that half
+  of the market.
 
 Every write is an upsert, so a pipeline run killed partway is repaired by the
 next one.
