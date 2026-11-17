@@ -1,7 +1,7 @@
-import { revalidateTag } from "next/cache";
 import { connection } from "next/server";
 import { authorizeJob, ok } from "@/lib/api";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { expireTag } from "@/lib/jobs/route-support";
 
 /**
  * Expires the cached read layer on a running instance.
@@ -20,6 +20,9 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
  * default `radarData` — the intraday poller must not bump the `days`-lifetime
  * tag every run, or every other cached read pays a recompute for a tick only
  * the TAIEX cell shows. See CACHE_TAGS.intraday.
+ *
+ * Expiry is immediate, like the job routes' (see expireTag): a caller only
+ * gets here after writing, and the next visitor should see what was written.
  */
 export async function POST(request: Request) {
   await connection();
@@ -28,10 +31,7 @@ export async function POST(request: Request) {
 
   const requested = new URL(request.url).searchParams.get("tag");
   const tag = requested === "intraday" ? CACHE_TAGS.intraday : CACHE_TAGS.radarData;
-
-  // "max" = stale-while-revalidate: keep serving the current dataset while the
-  // fresh one renders, rather than making the next visitor wait for it.
-  revalidateTag(tag, "max");
+  expireTag(tag);
 
   return ok({ revalidated: tag });
 }

@@ -5,9 +5,12 @@
  * functions in src/lib/queries.ts and src/lib/sentiment-queries.ts are cached
  * with a `days` lifetime and invalidated by tag when the data actually changes:
  *
- *   - RADAR_DATA  — the batch-computed dataset. Expired by the job routes
- *                   (src/app/api/jobs/*) via `revalidateTag(..., "max")` right
- *                   after a refresh/score/alert/brief run completes.
+ *   - RADAR_DATA  — the batch-computed dataset. Expired IMMEDIATELY by the job
+ *                   routes (src/app/api/jobs/*, `revalidateTag(tag, { expire: 0 })`
+ *                   via expireTag in src/lib/jobs/route-support.ts) after any
+ *                   run that wrote rows — partial runs included. Not "max":
+ *                   stale-while-revalidate would serve the first visitor after
+ *                   the evening run the previous session.
  *   - WATCHLIST   — user-mutable star/watchlist state. Expired by the server
  *                   actions in src/app/watchlist/actions.ts via `updateTag`,
  *                   so a star toggle is visible on the very next request.
