@@ -331,94 +331,102 @@ The synthetic seed deliberately models **correlation**, not just plausible-looki
 ## Jobs and scheduling
 
 ```bash
-npm run jobs:refresh   # pull providers → recompute technicals, statuses, scores
-npm run jobs:alerts    # evaluate alert rules
-npm run jobs:brief     # generate the AI daily brief
-npm run jobs:daily     # all three, in order
+npm run jobs:daily     # after-hours pipeline for the newest published session
+npm run jobs:refresh   # the same without alerts and the brief
+npm run jobs:alerts    # evaluate alert rules for the newest scored session
+npm run jobs:brief     # generate the AI daily brief for it
 npm run jobs:intraday  # one TAIEX tick from the MIS real-time feed
-npm run cron           # long-running local scheduler — see cadence below
+npm run cron           # long-running scheduler — see cadence below
 ```
 
 ```bash
 npm run verify:sources # read-only: confirm every live feed still parses
 ```
 
-`npm run cron` (`scripts/cron.ts`) runs two independent rhythms:
+`jobs:daily` and `jobs:refresh` (and their routes) take `--force` / `?force=1`
+to re-run every dataset of the session once.
 
-- **Intraday** — every minute, 08:30–13:30 Asia/Taipei, Mon–Fri. Polls the MIS
-  real-time feed for the TAIEX level only (`/api/jobs/intraday`'s job
-  function) and writes `IntradayIndex`. This is the only provider in the
-  codebase with anything new to say mid-session; everything else reads an
-  after-hours report.
-- **Pipeline check** — every 5 minutes, 13:31–23:59 Asia/Taipei, Mon–Fri. Runs
-  the full refresh → alerts → brief pipeline only when TWSE has published a
-  session that is not stored yet, and is a no-op otherwise (see
-  `latestPublishedSessionStored` in `src/lib/jobs/refresh-data.ts`). This is
-  what makes 5-minute polling safe. Note it asks what has been **published**,
-  not whether *today's* session exists: the whole-market snapshot lags into the
-  next morning, so a wall-clock question answers "no" all evening and turns the
-  poll into ~126 full pipeline runs against a host that IP-blocks for exactly
-  that.
+### What the after-hours pipeline does
 
-### Driving the jobs from outside
+`/api/jobs/daily`, `npm run jobs:daily` and `npm run cron` share one entry
+point, `runDailyPipeline` in `src/lib/jobs/pipeline.ts`:
 
-Every job route is built to be called by a scheduler: set `CRON_SECRET` and
-send it as `Authorization: Bearer <secret>`. With no secret configured the
-routes are allowed only outside production, so a deployed instance can never
-be triggered anonymously. Each route exports a `GET` alias as well as `POST`,
-because most schedulers (Vercel Cron included) only send `GET`.
+1. **Resolve the session** — the newest one TWSE has *published*, read from
+   the FMTQIK report (one request, memoized for 4 minutes). The openapi mirror
+   is only the fallback: it lags until ~05:20 the next morning. Every dataset
+   of the run is pinned to that session; rows a feed returns for any other day
+   are ignored.
+2. **Run only what the session still lacks.** Each dataset is logged as its
+   own `DatasetRun` row (`dataset_runs`), and the session is complete only when
+   the newest run of each of `market-status`, `prices`, `flows`, `technicals`,
+   `scores`, `sentiment`, `alerts` and `brief` is `success`:
 
-There are three ways to get the cadence above, and **the choice is forced by
-Vercel's cron limits, not by preference**: Hobby allows **2 cron jobs, firing
-at most once a day at an unspecified minute inside the scheduled hour**. That
-cannot express "every minute during the session" at all.
+   | Dataset | `success` when | Otherwise |
+   | --- | --- | --- |
+   | market-status | TAIEX close + breadth + market-level 三大法人 + 融資 are all published | `partial`, retried every 30 min until `PIPELINE_FLOW_DEADLINE` |
+   | prices | ≥95% of tracked stocks **and** both exchanges stored | `partial` (or `waiting` when nothing is out), retried every poll |
+   | flows | T86 + TPEx 三大法人 published; ≥80% of priced stocks on both exchanges | `waiting`, retried every poll until `PIPELINE_FLOW_DEADLINE`, then `failed` |
+   | technicals, scores, sentiment | prices complete; recomputed once flows land | scores and sentiment are `partial` while flows are missing, and finalized without them after `PIPELINE_FLOW_DEADLINE` |
+   | alerts, brief | scores and sentiment are `success` | not run yet |
 
-| | Intraday cadence | Cost | Depends on |
-| --- | --- | --- | --- |
-| **External scheduler → the job routes** | yes | free tier available | a third-party service staying up |
-| `npm run cron` on an always-on box | yes | a machine | that machine staying up |
-| Vercel Cron | **no** — Pro only, and even then per-invocation cost | Pro plan | nothing extra |
+   Per-stock margin (MI_MARGN, TPEx 融資) publishes hours after the
+   institutional reports and is not stored per stock, so it does not hold the
+   flows back. A share of stored rows is never enough on its own: prices need
+   both exchanges, because TPEx publishes ahead of TWSE and a session scored
+   off one exchange describes a different market.
+3. **Expire the read cache** — `revalidateTag("radar-data", { expire: 0 })`
+   whenever anything was written, so the next request reads fresh data rather
+   than a stale-while-revalidate copy.
 
-The external-scheduler route is what `vercel.json` is now sized for: it keeps
-only a **daily safety net** (2 entries, inside Hobby's limit) and leaves the
-real cadence to whatever is calling from outside. Point any cron service
-(cron-job.org, EasyCron, Cloudflare Workers Cron, a GitHub Actions schedule,
-…) at these, with the `Authorization` header on every entry:
+A poll with nothing left to do costs one upstream request and is logged as a
+`skipped` run. Overlapping runs (Vercel cron, GitHub Actions, the CLI, the
+backfill, `import:indicators`) share one database lease (`job_locks`), so a
+second run is logged `skipped — already running` instead of writing the same
+session twice. Every write is an upsert, so a run killed partway is resumed by
+the next poll.
 
-| Schedule (Asia/Taipei) | Request |
-| --- | --- |
-| every minute, 08:30–13:30, Mon–Fri | `GET https://<your-app>/api/jobs/intraday` |
-| every 5 min, 13:30–23:59, Mon–Fri | `GET https://<your-app>/api/jobs/daily` |
+For scale, on 2026-11-17 (Asia/Taipei): FMTQIK and MI_INDEX 每日收盤行情
+carried the session by 16:05 while the openapi mirror was still on the
+previous one; T86 appeared between 16:07 and 16:36, TPEx 三大法人 by 16:36;
+MI_MARGN and TPEx 融資 were still unpublished at 16:51.
 
-In UTC — what most schedulers actually take — that is `30-59 0`, `* 1-4` and
-`0-30 5` for intraday, and `30-59/5 5` plus `*/5 6-15` for the pipeline check,
-all `* * 1-5`.
+### Intraday
 
-Both endpoints are safe to call on that schedule, and safe to over-call:
+`npm run cron` polls the TAIEX level every `INTRADAY_INTERVAL_SECONDS`
+(default and minimum **60 s**) from the 09:00 open to the 13:30 close, plus one
+closing tick, on trading days only. This is the only live figure in the app;
+everything else is an after-hours report, and the UI labels it as such.
 
-- `/api/jobs/intraday` upserts one row keyed by `(index, date)`, so repeats
-  overwrite rather than accumulate. Outside market hours the feed returns no
-  tick and the job writes nothing; on a holiday it returns the *last* session's
-  tick, which lands on that session's own row and so never renders as today's
-  intraday badge (see `getIntradayIndex`).
-- `/api/jobs/daily` is a no-op unless TWSE has published a session that is not
-  stored yet — see `latestPublishedSessionStored`. It costs one request to the
-  non-rate-limited `openapi.twse.com.tw` to decide. This route re-derives that
-  from the database on every call, because each serverless invocation is a
-  fresh process with no memory of an earlier success.
+The minimum is not a performance limit. MIS (`mis.twse.com.tw`) is a
+delayed public display feed — it reports `userDelay: 5000` — and TWSE's terms
+allow viewing it, not high-frequency collection or redistribution. A faster
+cadence needs a licensed real-time source registered as an
+`IntradayQuoteProvider` (`src/lib/providers/types.ts`); the scheduler clamps
+the interval up to the slowest registered source's `minIntervalSeconds`, and
+`/api/jobs/intraday` refuses a fetch that follows the previous one sooner than
+that, whoever calls it.
 
-  The same check keeps the pipeline out of the window where TPEx has published
-  a session and the TWSE mirror has not: running then stores prices for the 16
-  TPEx names, none for the 39 TWSE ones, and scores the session off that half
-  of the market.
+### Driving the jobs
 
-Every write is an upsert, so a pipeline run killed partway is repaired by the
-next one.
+Every job route takes `Authorization: Bearer <CRON_SECRET>`. With no secret
+configured the routes are allowed only outside production. Each route exports
+`GET` as well as `POST`, because most schedulers only send `GET`. An optional
+`x-job-trigger` header names the caller in the job log.
 
-**GitHub Actions caveat** if you use it as the scheduler: scheduled workflows
-are explicitly best-effort and can be delayed during peak load, with 5 minutes
-as the shortest practical interval. It suits the 5-minute pipeline check; it
-does not reliably deliver a per-minute tick.
+Vercel Hobby cron fires **at most once a day, somewhere inside the scheduled
+hour**, so it cannot drive this cadence. The repository ships two schedulers
+that can, plus a safety net:
+
+| | Cadence | Notes |
+| --- | --- | --- |
+| `.github/workflows/scheduled-jobs.yml` | `/api/jobs/intraday` every 5 min 09:00–13:35, `/api/jobs/daily` every 5 min 13:30–23:55, Mon–Fri | Needs repo secrets `APP_URL` and `CRON_SECRET` (without them it exits successfully with a notice). Best-effort: runs often start minutes late. GitHub disables schedules in a public repo after 60 days without activity. |
+| `npm run cron` on an always-on machine | intraday every `INTRADAY_INTERVAL_SECONDS`, pipeline every 5 min | Needs `APP_URL` to expire the deployment's cache after writing. |
+| `vercel.json` | `/api/jobs/daily` once a day at 13:00 UTC (21:00–21:59 Taipei); `/api/jobs/verify` at 16:00 UTC | Safety net: after the flow deadline, so a single run can finalize the session. |
+
+Any other cron service works the same way. In UTC: intraday `*/5 1-4` and
+`0-35/5 5`; pipeline `30-55/5 5` and `*/5 6-15`; all `* * 1-5`. Moving
+`PIPELINE_FLOW_DEADLINE` later than 21:00 means moving the `vercel.json`
+safety net later too.
 
 `/api/jobs/verify` is the one worth scheduling forever. These are public
 reports, not versioned APIs: a renamed column produces a plausible-looking
@@ -426,6 +434,22 @@ wrong number rather than an error, and this project has already shipped one
 (market turnover read from 成交股數 instead of 成交金額, rendering as a
 perfectly believable "88 億"). It writes nothing and returns 503 on any failed
 check, so a scheduler surfaces drift as a failed invocation.
+
+### Data health
+
+`/admin/data-health` (protected by `ADMIN_TOKEN`; sign in at `/admin/login` or
+send `Authorization: Bearer <ADMIN_TOKEN>`) shows, per dataset and provider:
+whether the newest expected session is stored, the last attempt and last
+success, rows received and persisted, duration, HTTP status and the error,
+plus the recent job runs and every failure of the last 14 days. Each dataset is **Healthy**, **Waiting for
+publication** (the newest session is not out yet and its deadline has not
+passed), **Delayed** or **Failed**. `GET /api/admin/data-health` returns the
+same report as JSON.
+
+`GET /api/health` is public, for an uptime monitor: 200 when the core
+datasets (market status, prices, flows, scores, sentiment) are current or
+still inside their publication window, 503 when they are behind or failing.
+It carries no error detail.
 
 ---
 
@@ -446,6 +470,14 @@ GET /api/watchlist
 GET /api/score-weights
 GET /api/industry-sentiment         sentiment scores, components, breadth, ranks, sub-industries
 GET /api/sentiment-weights
+GET /api/health                     public freshness check: 200 current / 503 stale (no error detail)
+```
+
+Protected:
+
+```
+GET   /api/admin/data-health        per-dataset health report (Bearer ADMIN_TOKEN)
+POST  /api/admin/{login,logout}     admin session cookie for /admin/*
 ```
 
 Mutating:
@@ -453,10 +485,10 @@ Mutating:
 ```
 PATCH /api/score-weights            adjust heat weights (must sum to 1.00)
 PATCH /api/sentiment-weights        adjust sentiment weights (must sum to 1.00)
-POST  /api/jobs/{refresh,alerts,brief,daily,intraday}
+POST  /api/jobs/{refresh,alerts,brief,daily,intraday,verify,revalidate}   (Bearer CRON_SECRET; GET alias too)
 ```
 
-Every response is wrapped as `{ data, meta }`. `meta.dataMode` is `live` or `mock` and `meta.isDemoData` is true only in mock mode — a statement about the pipeline, not about every row. A database switched from demo to live still holds whatever mock rows predate the switch; per-row `isMock` is the ground truth.
+Every response except `/api/health` and `/api/admin/*` is wrapped as `{ data, meta }`. `meta.dataMode` is `live` or `mock` and `meta.isDemoData` is true only in mock mode — a statement about the pipeline, not about every row. A database switched from demo to live still holds whatever mock rows predate the switch; per-row `isMock` is the ground truth.
 
 ---
 
@@ -477,19 +509,29 @@ OPENAI_API_KEY=""
 OPENAI_MODEL="gpt-4o-mini"
 ANTHROPIC_API_KEY=""
 ANTHROPIC_MODEL="claude-sonnet-5"
+AI_TIMEOUT_MS="60000"       # per AI call; a timeout falls back to the mock composer
 
 # Job authorization (required in production)
 CRON_SECRET=""
 
-# Required in production — the daily job uses it to expire the read cache.
-APP_URL="https://your-deployment.vercel.app"
+# Admin area: /admin/data-health and /api/admin/* (required in production;
+# unset there, they answer 503). Use a long random value.
+ADMIN_TOKEN=""
 
-# Only read by `npm run cron` (scripts/cron.ts). Defaults match the table
-# above; override to change cadence without touching the schedule strings
-# in code. CRON_INTRADAY_SCHEDULE is comma-separated (multiple cron
-# expressions cover the 08:30-13:30 window — see scripts/cron.ts).
-CRON_INTRADAY_SCHEDULE="30-59 8 * * 1-5,* 9-12 * * 1-5,0-30 13 * * 1-5"
-CRON_PIPELINE_SCHEDULE="*/5 13-23 * * 1-5"
+# Base URL of the deployment. Needed by anything that writes from OUTSIDE it
+# (`npm run cron`, the jobs:* / db:backfill / import:indicators scripts) to
+# expire its cached pages afterwards.
+APP_URL=""
+
+# After-hours pipeline: when to stop waiting for per-stock institutional flows
+# (HH:MM Asia/Taipei). After it the session is finalized without them.
+PIPELINE_FLOW_DEADLINE="21:00"
+
+# `npm run cron` only (scripts/cron.ts). INTRADAY_INTERVAL_SECONDS is clamped
+# up to the intraday source's floor (60 s for MIS). CRON_PIPELINE_SCHEDULE is
+# comma-separated cron expressions.
+INTRADAY_INTERVAL_SECONDS="60"
+CRON_PIPELINE_SCHEDULE="30-55/5 13 * * 1-5,*/5 14-23 * * 1-5"
 CRON_TIMEZONE="Asia/Taipei"
 ```
 
@@ -514,7 +556,9 @@ Two schema notes worth knowing:
 
 ### Models
 
-`Industry` `Stock` `Indicator` `IndicatorValue` `IndustryScore` `ScoreWeightConfig` `IndustrySentimentSnapshot` `SentimentWeightConfig` `InstitutionalFlow` `MarketData` `StockFundamental` `MarketStatus` `Catalyst` `Alert` `AlertStock` `DailyBrief` `WatchlistItem` `DataSource`
+`Industry` `Stock` `Indicator` `IndicatorValue` `IndustryScore` `ScoreWeightConfig` `IndustrySentimentSnapshot` `SentimentWeightConfig` `InstitutionalFlow` `MarketData` `StockFundamental` `MarketStatus` `Catalyst` `Alert` `AlertStock` `DailyBrief` `WatchlistItem` `DataSource` `IntradayIndex` `JobRun` `DatasetRun` `JobLock`
+
+`JobRun` / `DatasetRun` are the job log (one row per invocation, one per dataset it touched) that `/admin/data-health` reads; `JobLock` is the lease that keeps two pipeline runs from overlapping.
 
 ```
 Industry
@@ -539,8 +583,9 @@ Industry
    which is exactly the pair the schema expects. Nothing to copy by hand.
 3. **Set the remaining env vars** under *Settings → Environment Variables*:
    `CRON_SECRET` (any random string — Vercel sends it as
-   `Authorization: Bearer <value>` on cron invocations), plus `AI_PROVIDER` and
-   the matching API key if the brief should call a real model.
+   `Authorization: Bearer <value>` on cron invocations), `ADMIN_TOKEN` (another
+   long random string, for `/admin/data-health`), plus `AI_PROVIDER` and the
+   matching API key if the brief should call a real model.
 4. **Deploy.**
 5. **Migrate and seed once.** Nothing here reads `dotenv` explicitly — the
    scripts inherit whatever Prisma Client loads from `.env` — so the simplest
@@ -549,7 +594,7 @@ Industry
    ```bash
    mv .env .env.local.bak
    vercel env pull .env          # writes the production values
-   npx prisma migrate deploy     # create the 19 tables
+   npx prisma migrate deploy     # create the 22 tables
    npm run db:seed               # demo dataset
    npm run jobs:daily            # first scores, alerts, brief
    mv .env.local.bak .env        # put local dev back
@@ -559,12 +604,13 @@ Industry
    Build* if later deploys should migrate themselves. The seed only ever runs
    this once.
 
-6. **Point a scheduler at the job routes.** `vercel.json` only carries a daily
-   safety net, because Hobby cron cannot do intraday cadence — see
-   [Driving the jobs from outside](#driving-the-jobs-from-outside) for the
-   two endpoints, their schedules, and the required `Authorization` header.
+6. **Turn on the scheduler.** `vercel.json` only carries a daily safety net,
+   because Hobby cron cannot do intraday cadence. Add the repository secrets
+   `APP_URL` and `CRON_SECRET` (same value as the deployment's) so
+   `.github/workflows/scheduled-jobs.yml` starts calling the job routes — or
+   point another scheduler at them; see [Driving the jobs](#driving-the-jobs).
    Without this step the dashboard shows whatever the last manual
-   `npm run jobs:daily` wrote.
+   `npm run jobs:daily` wrote. `/admin/data-health` shows whether it is running.
 
 ---
 
