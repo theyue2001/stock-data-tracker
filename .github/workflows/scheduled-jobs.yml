@@ -1,0 +1,82 @@
+# Drives the job routes of the deployed app on the cadence Vercel Hobby cannot
+# express (Hobby cron fires once a day, somewhere inside the scheduled hour).
+#
+# Both routes are idempotent and cheap when there is nothing to do:
+#   /api/jobs/intraday  upserts one TAIEX tick per session
+#   /api/jobs/daily     runs only what the newest published session still lacks
+#                       (one upstream request when it is already complete), and
+#                       refuses to overlap another run via the pipeline lock
+#
+# GitHub's schedule is best-effort: runs routinely start several minutes late
+# and can be dropped under load, so this is a 5-minute cadence at best. A true
+# per-minute intraday tick needs Vercel Pro cron or an external cron service.
+#
+# Repository secrets:
+#   APP_URL      e.g. https://your-app.vercel.app (no trailing slash needed)
+#   CRON_SECRET  the same value as the deployment's CRON_SECRET
+# Without them every run prints a notice and exits successfully, so a fork or
+# a not-yet-configured repository does not go red every five minutes.
+
+name: Scheduled jobs
+
+on:
+  schedule:
+    # Cron is UTC. Asia/Taipei is UTC+8 with no DST.
+    # Intraday tick: every 5 min, 09:00–13:35 Taipei = 01:00–05:35 UTC, Mon–Fri.
+    - cron: "*/5 1-4 * * 1-5"
+    - cron: "0-35/5 5 * * 1-5"
+    # After-hours pipeline poll: every 5 min, 13:30–23:55 Taipei = 05:30–15:55 UTC, Mon–Fri.
+    - cron: "30-55/5 5 * * 1-5"
+    - cron: "*/5 6-15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job route to call
+        type: choice
+        options: [daily, intraday, refresh, verify]
+        default: daily
+
+permissions: {}
+
+concurrency:
+  # One queue per schedule (intraday and daily never wait on each other).
+  group: scheduled-jobs-${{ github.event.schedule || inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Call job route
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_JOB: ${{ inputs.job }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::notice::APP_URL or CRON_SECRET secret is not set; skipping."
+            exit 0
+          fi
+
+          case "$SCHEDULE" in
+            "*/5 1-4 * * 1-5" | "0-35/5 5 * * 1-5") job=intraday ;;
+            "") job="${INPUT_JOB:-daily}" ;;
+            *) job=daily ;;
+          esac
+
+          # The pipeline routes may run up to their 300 s maxDuration.
+          case "$job" in
+            intraday) max_time=60 ;;
+            verify) max_time=150 ;;
+            *) max_time=320 ;;
+          esac
+
+          url="${APP_URL%/}/api/jobs/${job}"
+          echo "GET ${url}"
+          curl --fail-with-body --silent --show-error --max-time "$max_time" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "x-job-trigger: github-actions" \
+            "$url"
+          echo
