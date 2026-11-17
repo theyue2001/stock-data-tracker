@@ -1,41 +1,36 @@
-"use client";
-
-import { useSyncExternalStore } from "react";
+import { getDataStamp } from "@/lib/queries";
+import { mmddWeekday, taipeiStamp } from "@/lib/live/labels";
+import { MockTag } from "@/components/live/mock-tag";
 
 /**
- * Today's date in the sidebar footer.
+ * Sidebar footer: which session the dashboard's after-hours data is from,
+ * and when it last landed — both read from the database, in Asia/Taipei.
  *
- * Read on the client on purpose: taking the clock on the server would make the
- * root layout un-prerenderable (Cache Components rejects `new Date()` inside a
- * prerender), and that would cost every route its static shell — with it, the
- * instant sidebar navigation the shell pays for. The date is also genuinely
- * per-viewer, so the client is where it belongs.
- *
- * useSyncExternalStore rather than an effect: it renders the server snapshot
- * (null) during prerender and hydration, then the client snapshot, with no
- * hydration mismatch and no cascading render from a setState.
+ * Used to print the visitor's own calendar date and a hard-coded
+ * 「收盤資料 · 20:00 更新」, neither of which said anything about the data
+ * (no job runs at 20:00). Both values come from the cached data stamp, which
+ * is clock-free, so the layout keeps its prerendered shell; the formatting
+ * pins the timezone so a UTC server prints the same time as a Taipei one.
  */
-
-/** The clock is only read once per mount, so there is nothing to subscribe to. */
-const subscribe = () => () => {};
-
-function todayLabel(): string {
-  const now = new Date();
-  const date = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
-  const day = now.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
-  return `${date} ${day}`;
-}
-
-export function FooterDate() {
-  const label = useSyncExternalStore(subscribe, todayLabel, () => null);
-
+export async function FooterDate() {
+  const stamp = await getDataStamp();
   return (
     <>
-      {/* Non-breaking space holds the line's height before the client snapshot
-          lands, so the footer never shifts when the date appears. */}
-      {label ?? " "}
+      {stamp.session ? `收盤資料 ${mmddWeekday(stamp.session)}` : "尚無收盤資料"}
+      {stamp.isMock && <MockTag />}
       <br />
-      收盤資料 · 20:00 更新
+      {stamp.lastUpdatedAt ? `更新 ${taipeiStamp(stamp.lastUpdatedAt)}` : "更新時間未知"}
+    </>
+  );
+}
+
+/** Holds the footer's two lines while the stamp streams in, so nothing shifts. */
+export function FooterDateFallback() {
+  return (
+    <>
+      {" "}
+      <br />
+      {" "}
     </>
   );
 }

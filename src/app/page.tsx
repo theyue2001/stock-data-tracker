@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   getAlerts,
   getCapitalFlow,
+  getDataStamp,
   getIndicatorOverview,
   getIndustryRadar,
   getIntradayIndex,
@@ -11,6 +12,10 @@ import {
 } from "@/lib/queries";
 import { num, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { sessionString } from "@/lib/market-session";
+import { mmdd, mmddWeekday, taipeiStamp } from "@/lib/live/labels";
+import { LiveTaiexSub, LiveTaiexValue, type TaiexInitial } from "@/components/live/live-taiex";
+import { MockTag } from "@/components/live/mock-tag";
 import { getIndustryMomentum } from "@/lib/sentiment-queries";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { Panel, PanelLink, PanelRows } from "@/components/radar/panel";
@@ -56,7 +61,10 @@ function yi0(raw: number): string {
 
 /** Real-data-derived regime chip: direction from the index move, breadth
  *  from how many industries are strengthening vs. weakening today. Not
- *  copywriting — every input is a stored/derived number. */
+ *  copywriting — every input is a stored/derived number. Both halves must
+ *  describe the same settled session, so the direction is the official
+ *  close's, never the intraday tick's: industry statuses only exist for
+ *  sessions that have closed. */
 function regimeLabel(changePct: number, radar: Awaited<ReturnType<typeof getIndustryRadar>>) {
   const accelerating = radar.filter((r) => r.status === "accelerating" || r.status === "strengthening").length;
   const weak = radar.filter((r) => r.status === "weakening").length;
@@ -66,7 +74,8 @@ function regimeLabel(changePct: number, radar: Awaited<ReturnType<typeof getIndu
 }
 
 export default async function OverviewPage() {
-  const [market, intraday, radar, flow, indicators, alerts, watchKeys, momentum, stocks] = await Promise.all([
+  const [stamp, market, intraday, radar, flow, indicators, alerts, watchKeys, momentum, stocks] = await Promise.all([
+    getDataStamp(),
     getMarketStatus(),
     getIntradayIndex(),
     getIndustryRadar(),
@@ -117,43 +126,47 @@ export default async function OverviewPage() {
     .filter((r) => (r.status === "accelerating" || r.status === "strengthening") && r.majorCatalyst)
     .slice(0, 3);
 
-  // 三大法人 figures are a separate, rate-limited report from the index
-  // close and can miss a run; getMarketStatus then falls back to the last
-  // session that actually reported them rather than a defaulted 0. Say so
-  // whenever that fallback is in effect, so a gap doesn't read as "flat".
-  const flowSub = market?.detailStale ? `法人買賣超 · ${market.detailDate} 資料` : "法人買賣超";
+  // Every KPI says which session it is from. The TAIEX cell can be an
+  // intraday tick for a session whose close is not out yet, while turnover
+  // and 三大法人 only exist for settled sessions — and 三大法人 is a separate,
+  // rate-limited report that can lag the close by a session (getMarketStatus
+  // then falls back to the last session that reported it rather than a
+  // defaulted 0). Dating each figure is what keeps that mix readable.
+  const marketSession = market ? sessionString(market.date) : null;
+  const flowSub = market ? `${mmdd(market.detailDate)} 法人買賣超${market.detailStale ? "（非最新）" : ""}` : "法人買賣超";
 
-  // The intraday tick only ever describes TODAY's session (getIntradayIndex
-  // returns null once it isn't), so its presence alone is enough to prefer it
-  // over the settled close — no separate date comparison needed here.
-  const taiexClose = intraday ? intraday.last : market?.close;
-  const taiexChange = intraday ? intraday.change : market?.change;
-  const taiexChangePct = intraday ? intraday.changePct : (market?.changePct ?? 0);
-  const headerNote = intraday ? `盤中更新 ${intraday.tickAt}` : "LAST UPDATE 20:00 TST";
+  // The TAIEX figure is chosen and labelled in the browser (LiveTaiex*):
+  // whether a tick is 即時, 延遲 or the last print of a finished session
+  // depends on the clock, which a prerendered page cannot read.
+  const taiexInitial: TaiexInitial = {
+    close: market
+      ? { session: marketSession!, close: market.close, change: market.change, changePct: market.changePct, isMock: market.isMock }
+      : null,
+    intraday,
+  };
+  const headerNote = stamp.session
+    ? `收盤資料 ${mmddWeekday(stamp.session)}${stamp.lastUpdatedAt ? ` · 更新 ${taipeiStamp(stamp.lastUpdatedAt)}` : ""}`
+    : "尚無收盤資料";
 
   return (
     <PageShell>
       <PageHeader title="市場總覽" note={headerNote} subtitle="每個區塊只列重點 — 點卡片右下角進入完整資料">
         {market && (
-          <span className="bg-[rgba(255,86,60,.14)] px-2.5 py-1 text-[11px] font-bold text-[#ff8a70]">
-            {regimeLabel(taiexChangePct, radar)}
+          <span className="bg-[rgba(255,86,60,.14)] px-2.5 py-1 text-[11px] font-bold text-[#ff8a70]" title={`${marketSession} 收盤`}>
+            {regimeLabel(market.changePct, radar)}
           </span>
         )}
+        {market?.isMock && <MockTag className="ml-0" />}
       </PageHeader>
 
       {market ? (
         <KpiStrip
           cells={[
             {
-              label: intraday ? `加權指數 TAIEX · 盤中 ${intraday.tickAt.slice(0, 5)}` : "加權指數 TAIEX",
-              value: num(taiexClose ?? 0, 2),
-              valueColor: directionColor(taiexChangePct),
+              label: "加權指數 TAIEX",
+              value: <LiveTaiexValue initial={taiexInitial} />,
               emphasis: true,
-              sub: (
-                <span style={{ color: directionColor(taiexChangePct) }}>
-                  {(taiexChange ?? 0) >= 0 ? "▲" : "▼"} {num(Math.abs(taiexChange ?? 0), 2)}（{pct(taiexChangePct)}）
-                </span>
-              ),
+              sub: <LiveTaiexSub initial={taiexInitial} />,
             },
             {
               label: "成交金額",
@@ -164,7 +177,7 @@ export default async function OverviewPage() {
               ),
               sub: (
                 <>
-                  較 5 日均{" "}
+                  {mmdd(marketSession!)} · 較 5 日均{" "}
                   <span style={{ color: directionColor(market.volumeVs5dAvgPct) }}>{pct(market.volumeVs5dAvgPct, 0)}</span>
                 </>
               ),
@@ -434,6 +447,7 @@ export default async function OverviewPage() {
                     <span className="block truncate text-[12px] font-semibold">{ind.name}</span>
                     <span className="mt-0.5 block truncate font-mono text-[9.5px] text-[var(--rd-text-muted)]">
                       {ind.sourceName ?? "—"} · {ind.date}
+                      {ind.isMock && <MockTag />}
                     </span>
                   </span>
                   <span className="shrink-0 text-right">
