@@ -14,6 +14,7 @@ import type {
   FundamentalProvider,
   IndicatorProvider,
   IntradayIndexProvider,
+  IntradayQuoteProvider,
   InstitutionalFlowProvider,
   MarketDataProvider,
   MarketStatusProvider,
@@ -46,6 +47,52 @@ export const marketStatusProviders: MarketStatusProvider[] = live ? [new TwseMar
  *  reads a mid-session feed rather than an after-hours report, and it is
  *  driven by its own lightweight job (refresh-intraday.ts), not runRefreshJob. */
 export const intradayIndexProviders: IntradayIndexProvider[] = live ? [new TwseMisIndexProvider()] : [];
+
+/**
+ * Per-stock real-time quotes: deliberately EMPTY until a licensed feed is
+ * contracted. This is the slot an industry "price movement every 10–30 s"
+ * view would read, and it is not filled from mis.twse.com.tw for two reasons:
+ *
+ *  - Licensing. TWSE holds the IP in its trading information and requires its
+ *    consent and a written contract before anyone 「加值後提供傳輸、傳播或供他人
+ *    使用」 (TWSE FAQ, https://www.twse.com.tw/zh/products/information/qa.html).
+ *    The 基本市況報導 site is free to VIEW; a server polling it per stock and
+ *    re-serving the result to dashboard users is redistribution.
+ *  - Rate. MIS is a public viewing page with no published allowance for
+ *    automated clients, and its own payload asks a single browser to refresh
+ *    no more often than `userDelay` (5000 ms). Even batched into one request
+ *    per poll, a collector hitting it every 10–30 s for the whole session is
+ *    sustained automated load on a host family whose interactive site
+ *    IP-blocks bursty clients (see live/http.ts).
+ *
+ * The index-level MIS poll above stays at minute cadence for the same reasons
+ * (see TwseMisIndexProvider.minIntervalSeconds).
+ *
+ * Wiring in a licensed vendor takes more than an entry here:
+ *  1. a class implementing IntradayQuoteProvider with the contracted
+ *     `minIntervalSeconds` and `delayedSeconds`;
+ *  2. an `IntradayQuote` table (latest quote per stock and session) and its
+ *     migration — nothing stores per-stock intraday data today, and the daily
+ *     MarketData rows must not be overwritten mid-session;
+ *  3. an industry-movement aggregation (member stocks → industry change, with
+ *     the weighting chosen explicitly) behind its own cache tag;
+ *  4. a dataset key in the job log and a leg in the scheduler's intraday loop.
+ * All four are out of scope until a feed is licensed.
+ */
+export const intradayQuoteProviders: IntradayQuoteProvider[] = [];
+
+/**
+ * The slowest poll any registered intraday source allows, in seconds: the
+ * floor under INTRADAY_INTERVAL_SECONDS and under back-to-back calls to the
+ * intraday job. 0 when no intraday source is registered (DATA_MODE=mock).
+ */
+export function intradayPollFloorSeconds(): number {
+  return Math.max(
+    0,
+    ...intradayIndexProviders.map((p) => p.minIntervalSeconds),
+    ...intradayQuoteProviders.map((p) => p.minIntervalSeconds),
+  );
+}
 
 export const institutionalFlowProviders: InstitutionalFlowProvider[] = live
   ? [new TwseInstitutionalFlowProvider()]
