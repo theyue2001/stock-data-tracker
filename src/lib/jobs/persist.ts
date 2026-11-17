@@ -158,15 +158,25 @@ export async function writeMarketScopeFlows(
     if (r.foreignNet === null && r.trustNet === null && r.dealerNet === null) continue;
 
     const date = utcDay(r.date);
+    // Unpublished fields are OMITTED, as in writeMarketStatus: margin (MI_MARGN)
+    // lands hours after the institutional nets, and writing `?? 0` here would
+    // overwrite a real value with a fabricated zero on every partial re-run.
+    // Omitted, a new row takes the column default and an existing one keeps
+    // what it has until the pipeline's retry brings the real figure.
+    const nets = Object.fromEntries(
+      Object.entries({
+        foreignNet: r.foreignNet,
+        trustNet: r.trustNet,
+        dealerNet: r.dealerNet,
+        marginChange: r.marginChange,
+      }).filter(([, v]) => v !== null),
+    );
     const data = {
       date,
       scope: "market",
       industryId: null,
       stockId: null,
-      foreignNet: r.foreignNet ?? 0,
-      trustNet: r.trustNet ?? 0,
-      dealerNet: r.dealerNet ?? 0,
-      marginChange: r.marginChange ?? 0,
+      ...nets,
       turnover: 0,
       volumeChangePct: 0,
       dataSourceId,
@@ -383,10 +393,9 @@ export async function writeCatalysts(
     // the feed for several days, so identity is (stock, date, title). The
     // database cannot enforce it — an industry-only catalyst stores a NULL
     // stockId, which Postgres compares as distinct, so a unique index would
-    // never fire for exactly those rows — which makes this a best-effort
-    // dedupe: two overlapping runs can both miss here and store the same news
-    // item twice. That costs a duplicated headline, not a corrupted series,
-    // which is why it is accepted rather than serialized.
+    // never fire for exactly those rows. Two overlapping runs could both miss
+    // here and store the same item twice, which is why every job that writes
+    // here runs under the shared "pipeline" lease (see pipeline-lock.ts).
     const existing = await db.catalyst.findFirst({
       where: { stockId: stock?.id ?? null, date, title: r.title },
     });
@@ -672,6 +681,52 @@ export async function aggregateIndustryFlows(
   return written;
 }
 
+/**
+ * Industry-scope rows reported directly by a provider (the mock generator),
+ * kept so DATA_MODE=mock still produces a complete dataset. The live feed
+ * reports per stock and goes through aggregateIndustryFlows instead.
+ */
+export async function writeIndustryFlows(
+  results: InstitutionalFlowResult[],
+  dataSourceId: string,
+  isMock: boolean,
+): Promise<number> {
+  const slugs = [...new Set(results.map((r) => r.industryKey).filter((k): k is string => !!k))];
+  const industries = await db.industry.findMany({ where: { slug: { in: slugs } }, select: { id: true, slug: true } });
+  const idBySlug = new Map(industries.map((i) => [i.slug, i.id] as const));
+
+  let written = 0;
+  for (const r of results) {
+    const industryId = r.industryKey ? idBySlug.get(r.industryKey) : undefined;
+    if (!industryId) continue;
+    const date = utcDay(r.date);
+    const existing = await db.institutionalFlow.findMany({
+      where: { scope: "industry", industryId, date },
+      select: { id: true },
+    });
+    await writeFlowRow(
+      existing.map((row) => row.id),
+      {
+        date,
+        scope: "industry",
+        industryId,
+        stockId: null,
+        foreignNet: r.foreignNet,
+        trustNet: r.trustNet,
+        dealerNet: r.dealerNet,
+        marginChange: r.marginChange,
+        turnover: r.turnover,
+        volumeChangePct: r.volumeChangePct,
+        dataSourceId,
+        isMock,
+      },
+      `industry ${r.industryKey} ${isoDay(date)}`,
+    );
+    written++;
+  }
+  return written;
+}
+
 // ---------------------------------------------------------------------------
 // Indicators
 // ---------------------------------------------------------------------------
@@ -735,7 +790,11 @@ export async function writeIndicatorValues(
  * the industry radar reads, so it is warned about rather than absorbed.
  *
  * Second, the race itself cannot be closed here; it needs the partial unique
- * indexes the schema still lacks.
+ * indexes the schema still lacks. Until then it is closed one level up: every
+ * job that writes flows (daily, refresh, backfill and the CLI scripts) holds
+ * the shared "pipeline" lease while it runs (see pipeline-lock.ts), so two
+ * writers never overlap. Rows duplicated before that lease existed are still
+ * rewritten together here.
  */
 async function writeFlowRow(
   existingIds: string[],
