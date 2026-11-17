@@ -156,13 +156,77 @@ export interface IntradayIndexResult {
   low: number;
   /** Exchange-reported time of the last tick, "HH:mm:ss". */
   tickAt: string;
+  /**
+   * The same tick as an exact instant (epoch ms), when the feed reports one
+   * (MIS `tlong`). Not persisted — IntradayIndex keeps only `tickAt` — but the
+   * job log records it as the dataset's `sourceAsOf`, which is what tells a
+   * fresh tick apart from the feed repeating an old one.
+   */
+  tickEpochMs?: number;
 }
 
 export interface IntradayIndexProvider {
   source: ProviderSource;
+  /**
+   * The shortest poll interval this source permits, in seconds — set by its
+   * terms of use and rate tolerance, not by what this code could manage. The
+   * scheduler clamps INTRADAY_INTERVAL_SECONDS up to the largest value among
+   * the registered intraday providers, and the intraday job refuses a call
+   * that comes sooner, so neither a config typo nor an over-eager external
+   * cron can poll a source faster than it allows.
+   */
+  readonly minIntervalSeconds: number;
   /** Empty array means "no tick yet for this session" (pre-market, or the
-   *  feed has nothing new) — never a zero-filled row. */
+   *  feed has nothing new) — never a zero-filled row. Throws when the feed
+   *  answers with something that cannot be a valid tick. */
   fetchLatest(): Promise<IntradayIndexResult[]>;
+}
+
+// ---------------------------------------------------------------------------
+// Intraday per-stock quotes — contract for a FUTURE licensed real-time feed.
+// Nothing implements it yet; see `intradayQuoteProviders` in registry.ts for
+// why, and for what wiring one in involves.
+// ---------------------------------------------------------------------------
+
+/** One stock's quote from a licensed real-time (or licensed delayed) feed. */
+export interface IntradayQuote {
+  ticker: string;
+  /** Last traded price. Never a bid/ask midpoint, a reference price or the
+   *  prior close standing in for a stock that has not traded yet — such a
+   *  stock is simply absent from the result. */
+  price: number;
+  /** `price` minus the prior session's close. */
+  change: number;
+  changePct: number;
+  /** Shares traded so far this session, up to `tickAt`. */
+  volume: number;
+  /** Best bid / ask at `tickAt`, when the licence includes depth. */
+  bid?: number;
+  ask?: number;
+  /** Exchange time of the trade behind `price`. */
+  tickAt: Date;
+  /**
+   * How far behind real time the licence makes this feed, in seconds (0 =
+   * real time; vendor "delayed" tiers are typically 900–1200). Carried per
+   * quote so the UI can label a delayed price as delayed instead of passing
+   * it off as live.
+   */
+  delayedSeconds: number;
+}
+
+export interface IntradayQuoteProvider {
+  source: ProviderSource;
+  /** Shortest poll interval the licence / vendor allows, in seconds. Same
+   *  clamping rules as IntradayIndexProvider.minIntervalSeconds. */
+  readonly minIntervalSeconds: number;
+  /**
+   * Always `true`, as a type-level gate: only a feed covered by a written
+   * redistribution agreement may implement this interface. A public viewing
+   * page scraped per stock (e.g. mis.twse.com.tw) cannot honestly declare it.
+   */
+  readonly licensed: true;
+  /** Latest quote for each of `stocks` that has traded this session. */
+  fetchQuotes(stocks: StockRef[]): Promise<IntradayQuote[]>;
 }
 
 // ---------------------------------------------------------------------------
