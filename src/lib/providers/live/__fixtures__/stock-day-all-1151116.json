@@ -1,0 +1,93 @@
+[
+ {
+  "Date": "1151116",
+  "Code": "2317",
+  "Name": "鴻海",
+  "TradeVolume": "80611194",
+  "TradeValue": "18232288164",
+  "OpeningPrice": "238.00",
+  "HighestPrice": "238.00",
+  "LowestPrice": "217.50",
+  "ClosingPrice": "218.50",
+  "Change": "-22.5000",
+  "Transaction": "105307"
+ },
+ {
+  "Date": "1151116",
+  "Code": "2382",
+  "Name": "廣達",
+  "TradeVolume": "21642253",
+  "TradeValue": "5788834671",
+  "OpeningPrice": "275.00",
+  "HighestPrice": "276.50",
+  "LowestPrice": "262.50",
+  "ClosingPrice": "264.50",
+  "Change": "-12.0000",
+  "Transaction": "23981"
+ },
+ {
+  "Date": "1151116",
+  "Code": "2603",
+  "Name": "長榮",
+  "TradeVolume": "10101861",
+  "TradeValue": "2631965764",
+  "OpeningPrice": "257.00",
+  "HighestPrice": "264.00",
+  "LowestPrice": "256.00",
+  "ClosingPrice": "257.00",
+  "Change": "-0.5000",
+  "Transaction": "9533"
+ },
+ {
+  "Date": "1151116",
+  "Code": "00400A",
+  "Name": "主動國泰動能高息",
+  "TradeVolume": "98028977",
+  "TradeValue": "1175741162",
+  "OpeningPrice": "12.48",
+  "HighestPrice": "12.51",
+  "LowestPrice": "11.73",
+  "ClosingPrice": "11.73",
+  "Change": "-1.1300",
+  "Transaction": "21522"
+ },
+ {
+  "Date": "1151116",
+  "Code": "00625K",
+  "Name": "富邦上証+R",
+  "TradeVolume": "",
+  "TradeValue": "",
+  "OpeningPrice": "",
+  "HighestPrice": "",
+  "LowestPrice": "",
+  "ClosingPrice": "",
+  "Change": "0.0000",
+  "Transaction": ""
+ },
+ {
+  "Date": "1151116",
+  "Code": "00651R",
+  "Name": "復華香港反1",
+  "TradeVolume": "283998",
+  "TradeValue": "1561048",
+  "OpeningPrice": "5.50",
+  "HighestPrice": "5.54",
+  "LowestPrice": "5.47",
+  "ClosingPrice": "5.49",
+  "Change": "0.0000",
+  "Transaction": "18"
+ },
+ {
+  "Date": "1151116",
+  "Code": "00936",
+  "Name": "台新永續高息中小",
+  "TradeVolume": "644451",
+  "TradeValue": "12229869",
+  "OpeningPrice": "19.40",
+  "HighestPrice": "19.40",
+  "LowestPrice": "18.53",
+  "ClosingPrice": "18.60",
+  "Change": "0.0000",
+  "Transaction": "534"
+ }
+]

@@ -1,5 +1,18 @@
-import { fetchJsonOptional } from "@/lib/providers/live/http";
-import { parseNumber, rocCompactToDate, toTpexDateParam, toTwseDateParam } from "@/lib/providers/live/parse";
+import { fetchJson } from "@/lib/providers/live/http";
+import {
+  dayString,
+  fieldIndex,
+  parseNumber,
+  rocSlashToDate,
+  rocTitleToDate,
+  sameDay,
+  toTpexDateParam,
+  toTwseDateParam,
+  twseHasNoData,
+  twseTitleDate,
+} from "@/lib/providers/live/parse";
+import { requirePublishedSession, type TwseTableResponse } from "@/lib/providers/live/market-status-provider";
+import { NotPublishedError } from "@/lib/providers/errors";
 import type {
   InstitutionalFlowProvider,
   InstitutionalFlowResult,
@@ -25,33 +38,33 @@ import { utcDay } from "@/lib/dates";
  * and is left in 張, the unit both feeds publish it in: neither exchange
  * publishes a per-stock loan AMOUNT, so there is nothing here the writer
  * could store in its NT$ margin column, and it stores none.
+ *
+ * All four reports must be published for the session before any row is
+ * returned. They publish at different times on the session day (on
+ * 2026-11-17 T86 was still empty at 16:07 and out at 16:36, when the TPEx
+ * 三大法人 report was out too and both margin reports were still empty), and
+ * a report that is not out yet answers with an empty table —
+ * which the previous version read as "every stock had zero activity" and
+ * stored as measured zeros. Until all four are out this throws
+ * NotPublishedError, which the job log records as `waiting`.
  */
 
 const TWSE_T86 = "https://www.twse.com.tw/rwd/zh/fund/T86";
 const TWSE_MARGIN = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN";
 const TPEX_INSTI = "https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade";
 const TPEX_MARGIN = "https://www.tpex.org.tw/www/zh-tw/margin/balance";
-const TWSE_SNAPSHOT_DATE = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
 
-interface TwseTableResponse {
+export interface TpexTableResponse {
+  date?: string;
   stat?: string;
-  date?: string;
-  fields?: string[];
-  data?: string[][];
-  tables?: Array<{ title?: string; fields?: string[]; data?: string[][] }>;
+  tables?: Array<{ title?: string; date?: string; totalCount?: number; fields?: string[]; data?: string[][] }>;
 }
 
-interface TpexTableResponse {
-  date?: string;
-  tables?: Array<{ date?: string; fields?: string[]; data?: string[][] }>;
-}
-
-/** Per-stock net flows in shares, plus the margin-balance change in 張. */
-interface StockFlowRow {
+/** Per-stock net flows in shares. */
+export interface NetFlows {
   foreignNetShares: number;
   trustNetShares: number;
   dealerNetShares: number;
-  marginChangeLots: number;
 }
 
 export class TwseInstitutionalFlowProvider implements InstitutionalFlowProvider {
@@ -65,167 +78,267 @@ export class TwseInstitutionalFlowProvider implements InstitutionalFlowProvider 
       "Official daily foreign / investment-trust / dealer net buying per stock, and the margin financing balance change, from the TWSE and TPEx after-hours reports.",
   };
 
+  /** The session prices resolve too (see latestSessionDate), so the flows
+   *  written by a run are always valued against that run's own closes. */
   async fetchLatest(stocks: StockRef[]): Promise<InstitutionalFlowResult[]> {
-    const date = await this.latestSessionDate();
-    if (!date) return [];
+    const { date } = await requirePublishedSession();
     return this.fetchForDate(stocks, date);
   }
 
+  /**
+   * Flows and margin change for one session.
+   *
+   * Throws NotPublishedError naming every report that is not out for `date`
+   * yet; any other failure (HTTP, a block, a layout change) propagates as is.
+   */
   async fetchForDate(stocks: StockRef[], date: Date): Promise<InstitutionalFlowResult[]> {
     const day = utcDay(date);
-    const wanted = new Map(stocks.map((s) => [s.ticker, s.exchange] as const));
 
     // Both exchanges are hit concurrently; the HTTP layer throttles each host
-    // independently so this does not risk a rate-limit block.
-    const [twseFlows, twseMargin, tpexFlows, tpexMargin] = await Promise.all([
-      this.fetchTwseFlows(day),
-      this.fetchTwseMargin(day),
-      this.fetchTpexFlows(day),
-      this.fetchTpexMargin(day),
+    // independently so this does not risk a rate-limit block. allSettled, not
+    // all: when several reports are missing the error should name all of
+    // them, not whichever lost the race.
+    const settled = await Promise.allSettled([
+      fetchJson<TwseTableResponse>(`${TWSE_T86}?date=${toTwseDateParam(day)}&selectType=ALL&response=json`).then((p) =>
+        parseT86(p, day),
+      ),
+      fetchJson<TwseTableResponse>(`${TWSE_MARGIN}?date=${toTwseDateParam(day)}&selectType=ALL&response=json`).then(
+        (p) => parseTwseMargin(p, day),
+      ),
+      fetchJson<TpexTableResponse>(
+        `${TPEX_INSTI}?type=Daily&sect=EW&date=${toTpexDateParam(day)}&id=&response=json`,
+      ).then((p) => parseTpexFlows(p, day)),
+      fetchJson<TpexTableResponse>(`${TPEX_MARGIN}?date=${toTpexDateParam(day)}&id=&response=json`).then((p) =>
+        parseTpexMargin(p, day),
+      ),
     ]);
 
-    const merged = new Map<string, StockFlowRow>();
-    const absorb = (
-      flows: Map<string, Omit<StockFlowRow, "marginChangeLots">>,
-      margin: Map<string, number>,
-    ) => {
-      for (const [ticker, flow] of flows) {
-        merged.set(ticker, { ...flow, marginChangeLots: margin.get(ticker) ?? 0 });
-      }
-      // A stock can have a margin change on a session with no institutional
-      // activity at all, and dropping it would understate leverage build-up.
-      for (const [ticker, lots] of margin) {
-        if (merged.has(ticker)) continue;
-        merged.set(ticker, {
-          foreignNetShares: 0,
-          trustNetShares: 0,
-          dealerNetShares: 0,
-          marginChangeLots: lots,
-        });
-      }
-    };
-    absorb(twseFlows, twseMargin);
-    absorb(tpexFlows, tpexMargin);
-
-    const results: InstitutionalFlowResult[] = [];
-    for (const [ticker, row] of merged) {
-      if (!wanted.has(ticker)) continue;
-      results.push({
-        date: day,
-        scope: "stock",
-        ticker,
-        foreignNet: row.foreignNetShares,
-        trustNet: row.trustNetShares,
-        dealerNet: row.dealerNetShares,
-        // Left in 張, deliberately not converted to shares. Valuing it at the
-        // close the way the three net figures are valued would yield the
-        // market value of the shares under margin, not the change in the loan
-        // behind them: the loan is struck at ~60% of the price on the day it
-        // is taken out and never marks to market, so 張 x close comes out
-        // anywhere from 0.4x to 2.6x the exchange's own 融資金額 delta, and on
-        // a session where cheap names gained margin while expensive ones shed
-        // it, with the opposite sign.
-        marginChange: row.marginChangeLots,
-        turnover: 0, // derived from stored price data by the refresh job
-        volumeChangePct: 0, // ditto
-        unit: "shares",
-      });
+    const failure = settled.find(
+      (s): s is PromiseRejectedResult => s.status === "rejected" && !(s.reason instanceof NotPublishedError),
+    );
+    if (failure) throw failure.reason;
+    const waiting = settled
+      .filter((s): s is PromiseRejectedResult => s.status === "rejected")
+      .map((s) => s.reason as NotPublishedError);
+    if (waiting.length) {
+      throw new NotPublishedError(
+        waiting.map((e) => e.source).join(" + "),
+        dayString(day),
+        waiting.map((e) => e.message).join("; "),
+      );
     }
-    return results;
+
+    const [twseFlows, twseMargin, tpexFlows, tpexMargin] = settled.map(
+      (s) => (s as PromiseFulfilledResult<unknown>).value,
+    ) as [Map<string, NetFlows>, Map<string, number>, Map<string, NetFlows>, Map<string, number>];
+
+    return mergeFlows(
+      stocks,
+      day,
+      [twseFlows, tpexFlows],
+      [twseMargin, tpexMargin],
+    );
+  }
+}
+
+/**
+ * Joins published flow and margin reports into per-stock rows.
+ *
+ * Absence from a PUBLISHED report is a real zero, which is the only reason
+ * the zeros below are not invented: T86 / the TPEx report list just the
+ * securities institutions traded that session, and the margin reports list
+ * every margin-eligible security, so a stock missing from one had no such
+ * activity. That inference is only sound because every report reaching this
+ * function has already been confirmed published for `day`.
+ */
+export function mergeFlows(
+  stocks: StockRef[],
+  day: Date,
+  flowReports: Array<Map<string, NetFlows>>,
+  marginReports: Array<Map<string, number>>,
+): InstitutionalFlowResult[] {
+  const flows = new Map<string, NetFlows>();
+  for (const report of flowReports) for (const [ticker, flow] of report) flows.set(ticker, flow);
+  const margin = new Map<string, number>();
+  for (const report of marginReports) for (const [ticker, lots] of report) margin.set(ticker, lots);
+
+  const none: NetFlows = { foreignNetShares: 0, trustNetShares: 0, dealerNetShares: 0 };
+  const results: InstitutionalFlowResult[] = [];
+  for (const { ticker } of stocks) {
+    const flow = flows.get(ticker);
+    const lots = margin.get(ticker);
+    // In neither report: not traded on either exchange this session, or not
+    // listed at all. Nothing to say about it.
+    if (!flow && lots === undefined) continue;
+    const row = flow ?? none;
+    results.push({
+      date: utcDay(day),
+      scope: "stock",
+      ticker,
+      foreignNet: row.foreignNetShares,
+      trustNet: row.trustNetShares,
+      dealerNet: row.dealerNetShares,
+      // Left in 張, deliberately not converted to shares. Valuing it at the
+      // close the way the three net figures are valued would yield the
+      // market value of the shares under margin, not the change in the loan
+      // behind them: the loan is struck at ~60% of the price on the day it
+      // is taken out and never marks to market, so 張 x close comes out
+      // anywhere from 0.4x to 2.6x the exchange's own 融資金額 delta, and on
+      // a session where cheap names gained margin while expensive ones shed
+      // it, with the opposite sign.
+      marginChange: lots ?? 0,
+      turnover: 0, // derived from stored price data by the refresh job
+      volumeChangePct: 0, // ditto
+      unit: "shares",
+    });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Report parsers. Each one either returns the rows of a report confirmed to be
+// published for `day`, or throws: NotPublishedError when the report is empty
+// or still on an earlier session, a plain Error when its shape is wrong.
+// ---------------------------------------------------------------------------
+
+/** Rejects a report that carries a session other than `day`. One that is still
+ *  on an EARLIER session simply has not published `day` yet. */
+function requireSession(report: string, carried: Date | null, day: Date): void {
+  if (!carried) throw new Error(`${report} payload carries no session date`);
+  if (sameDay(carried, day)) return;
+  if (carried.getTime() < day.getTime()) {
+    throw new NotPublishedError(report, dayString(day), `${report} still carries ${dayString(carried)}, not ${dayString(day)}`);
+  }
+  throw new Error(`${report} asked for ${dayString(day)} answered ${dayString(carried)}`);
+}
+
+/** Collects one row per ticker; a row with an unreadable cell is dropped and
+ *  counted rather than read as zero. */
+function collect<T>(report: string, rows: string[][], read: (row: string[]) => [string, T] | null): Map<string, T> {
+  const out = new Map<string, T>();
+  let unreadable = 0;
+  for (const row of rows) {
+    const entry = read(row);
+    if (entry) out.set(entry[0], entry[1]);
+    else unreadable++;
+  }
+  if (unreadable) console.warn(`[flows] ${report}: ${unreadable} row(s) with unreadable figures skipped`);
+  return out;
+}
+
+/** TWSE T86 三大法人買賣超日報, per stock, in shares. */
+export function parseT86(payload: TwseTableResponse, day: Date): Map<string, NetFlows> {
+  const report = "TWSE T86";
+  if (twseHasNoData(payload)) throw new NotPublishedError(report, dayString(day));
+  if (payload.stat !== "OK") throw new Error(`${report} answered "${payload.stat}"`);
+  requireSession(report, twseTitleDate(payload), day);
+  if (!payload.data?.length) throw new NotPublishedError(report, dayString(day));
+
+  const code = fieldIndex(report, payload.fields, "證券代號");
+  const foreign = fieldIndex(report, payload.fields, "外陸資買賣超股數(不含外資自營商)");
+  const foreignDealer = fieldIndex(report, payload.fields, "外資自營商買賣超股數");
+  const trust = fieldIndex(report, payload.fields, "投信買賣超股數");
+  const dealer = fieldIndex(report, payload.fields, "自營商買賣超股數");
+
+  return collect(report, payload.data, (row) => {
+    const ticker = String(row[code] ?? "").trim();
+    const f = parseNumber(row[foreign]);
+    const fd = parseNumber(row[foreignDealer]);
+    const t = parseNumber(row[trust]);
+    const d = parseNumber(row[dealer]);
+    if (!ticker || f === null || fd === null || t === null || d === null) return null;
+    // Foreign totals include the foreign-dealer book so the figure matches
+    // what TPEx reports as 外資及陸資合計 on the other exchange.
+    return [ticker, { foreignNetShares: f + fd, trustNetShares: t, dealerNetShares: d }];
+  });
+}
+
+/** TWSE MI_MARGN 融資融券彙總: per-stock change in the financing balance, in 張. */
+export function parseTwseMargin(payload: TwseTableResponse, day: Date): Map<string, number> {
+  const report = "TWSE MI_MARGN";
+  if (twseHasNoData(payload)) throw new NotPublishedError(report, dayString(day));
+  if (payload.stat !== "OK") throw new Error(`${report} answered "${payload.stat}"`);
+  const table = payload.tables?.find((t) => t?.title?.includes("融資融券彙總"));
+  if (!table) throw new Error(`${report} layout changed: no 融資融券彙總 table`);
+  requireSession(report, rocTitleToDate(table.title ?? ""), day);
+  if (!table.data?.length) throw new NotPublishedError(report, dayString(day));
+
+  // 前日餘額 / 今日餘額 appear twice — once under 融資, once under 融券 — and
+  // the first pair is the financing one only while 融資 is the first group
+  // after the two identity columns.
+  if (table.groups && table.groups[1]?.title !== "融資") {
+    throw new Error(`${report} layout changed: groups are [${table.groups.map((g) => g.title).join(", ")}]`);
+  }
+  const code = fieldIndex(report, table.fields, "代號");
+  const prior = fieldIndex(report, table.fields, "前日餘額");
+  const today = fieldIndex(report, table.fields, "今日餘額");
+
+  return collect(report, table.data, (row) => {
+    const ticker = String(row[code] ?? "").trim();
+    const before = parseNumber(row[prior]);
+    const after = parseNumber(row[today]);
+    if (!ticker || before === null || after === null) return null;
+    return [ticker, after - before];
+  });
+}
+
+/**
+ * TPEx 三大法人買賣明細, per stock, in shares.
+ *
+ * Its 24 columns repeat the same three names (買進股數 / 賣出股數 / 買賣超股數)
+ * for each investor group, so they cannot be found by name. The positions are
+ * checked instead against the report's own arithmetic, which holds exactly on
+ * every row published (902 of 902 on 11-17): 外資合計 = 外資不含自營 + 外資自營商,
+ * and 三大法人合計 = 外資合計 + 投信 + 自營合計. A shifted column breaks both.
+ */
+export function parseTpexFlows(payload: TpexTableResponse, day: Date): Map<string, NetFlows> {
+  const report = "TPEx 三大法人";
+  const table = payload.tables?.[0];
+  if (!table) throw new Error(`${report} layout changed: no table`);
+  requireSession(report, rocSlashToDate(table.date ?? ""), day);
+  if (!table.data?.length) throw new NotPublishedError(report, dayString(day));
+  const fields = table.fields ?? [];
+  if (fields.length !== 24 || !fields[23]?.includes("三大法人買賣超股數合計")) {
+    throw new Error(`${report} layout changed: [${fields.join(", ")}]`);
   }
 
-  /** The date of the most recently published whole-market snapshot. Using the
-   *  wall clock instead would ask for a report that does not exist yet on a
-   *  weekend, a holiday, or before the after-hours publication. */
-  private async latestSessionDate(): Promise<Date | null> {
-    const rows = await fetchJsonOptional<Array<{ Date?: string }>>(TWSE_SNAPSHOT_DATE);
-    const stamp = rows?.[0]?.Date;
-    return stamp ? rocCompactToDate(stamp) : null;
+  // 0 代號, 1 名稱, then buy/sell/net triplets:
+  // 2-4 外資不含自營, 5-7 外資自營商, 8-10 外資合計,
+  // 11-13 投信, 14-16 自營自行, 17-19 自營避險, 20-22 自營合計, 23 三大法人合計
+  let inconsistent = 0;
+  const out = collect(report, table.data, (row) => {
+    const ticker = String(row[0] ?? "").trim();
+    const [foreignEx, foreignDealer, foreign, trust, dealer, total] = [4, 7, 10, 13, 22, 23].map((i) =>
+      parseNumber(row[i]),
+    );
+    if (!ticker || foreign === null || trust === null || dealer === null) return null;
+    if (foreignEx === null || foreignDealer === null || total === null) return null;
+    if (foreign !== foreignEx + foreignDealer || total !== foreign + trust + dealer) inconsistent++;
+    return [ticker, { foreignNetShares: foreign, trustNetShares: trust, dealerNetShares: dealer }];
+  });
+  if (inconsistent > table.data.length / 2) {
+    throw new Error(`${report} layout changed: ${inconsistent}/${table.data.length} rows fail the 合計 identities`);
   }
+  return out;
+}
 
-  private async fetchTwseFlows(
-    day: Date,
-  ): Promise<Map<string, Omit<StockFlowRow, "marginChangeLots">>> {
-    const url = `${TWSE_T86}?date=${toTwseDateParam(day)}&selectType=ALL&response=json`;
-    const payload = await fetchJsonOptional<TwseTableResponse>(url);
-    const out = new Map<string, Omit<StockFlowRow, "marginChangeLots">>();
-    if (payload?.stat !== "OK" || !payload.data) return out;
+/** TPEx 融資融券餘額: per-stock change in the financing balance, in 張. */
+export function parseTpexMargin(payload: TpexTableResponse, day: Date): Map<string, number> {
+  const report = "TPEx 融資融券餘額";
+  const table = payload.tables?.[0];
+  if (!table) throw new Error(`${report} layout changed: no table`);
+  requireSession(report, rocSlashToDate(table.date ?? ""), day);
+  if (!table.data?.length) throw new NotPublishedError(report, dayString(day));
 
-    // 0 代號 … 4 外陸資買賣超(不含外資自營商), 7 外資自營商買賣超,
-    // 10 投信買賣超, 11 自營商買賣超(合計)
-    for (const row of payload.data) {
-      const ticker = String(row[0] ?? "").trim();
-      if (!ticker) continue;
-      // Foreign totals include the foreign-dealer book so the figure matches
-      // what TPEx reports as 外資及陸資合計 on the other exchange.
-      const foreign = (parseNumber(row[4]) ?? 0) + (parseNumber(row[7]) ?? 0);
-      out.set(ticker, {
-        foreignNetShares: foreign,
-        trustNetShares: parseNumber(row[10]) ?? 0,
-        dealerNetShares: parseNumber(row[11]) ?? 0,
-      });
-    }
-    return out;
-  }
+  const code = fieldIndex(report, table.fields, "代號");
+  const prior = fieldIndex(report, table.fields, "前資餘額(張)");
+  const today = fieldIndex(report, table.fields, "資餘額");
 
-  /** Per-stock change in the margin financing balance, in 張. */
-  private async fetchTwseMargin(day: Date): Promise<Map<string, number>> {
-    const url = `${TWSE_MARGIN}?date=${toTwseDateParam(day)}&selectType=ALL&response=json`;
-    const payload = await fetchJsonOptional<TwseTableResponse>(url);
-    const out = new Map<string, number>();
-    const table = payload?.tables?.find((t) => (t.fields?.length ?? 0) > 10 && t.data?.length);
-    if (!table?.data) return out;
-
-    // 0 代號, 1 名稱, 2 資買, 3 資賣, 4 現償, 5 前日餘額, 6 今日餘額 (張)
-    for (const row of table.data) {
-      const ticker = String(row[0] ?? "").trim();
-      const prior = parseNumber(row[5]);
-      const today = parseNumber(row[6]);
-      if (!ticker || prior === null || today === null) continue;
-      out.set(ticker, today - prior);
-    }
-    return out;
-  }
-
-  private async fetchTpexFlows(
-    day: Date,
-  ): Promise<Map<string, Omit<StockFlowRow, "marginChangeLots">>> {
-    const url = `${TPEX_INSTI}?type=Daily&sect=EW&date=${toTpexDateParam(day)}&id=&response=json`;
-    const payload = await fetchJsonOptional<TpexTableResponse>(url);
-    const rows = payload?.tables?.[0]?.data;
-    const out = new Map<string, Omit<StockFlowRow, "marginChangeLots">>();
-    if (!rows) return out;
-
-    // 0 代號, 1 名稱, then buy/sell/net triplets:
-    // 2-4 外資不含自營, 5-7 外資自營商, 8-10 外資合計,
-    // 11-13 投信, 14-16 自營自行, 17-19 自營避險, 20-22 自營合計, 23 三大法人合計
-    for (const row of rows) {
-      const ticker = String(row[0] ?? "").trim();
-      if (!ticker) continue;
-      out.set(ticker, {
-        foreignNetShares: parseNumber(row[10]) ?? 0,
-        trustNetShares: parseNumber(row[13]) ?? 0,
-        dealerNetShares: parseNumber(row[22]) ?? 0,
-      });
-    }
-    return out;
-  }
-
-  private async fetchTpexMargin(day: Date): Promise<Map<string, number>> {
-    const url = `${TPEX_MARGIN}?date=${toTpexDateParam(day)}&id=&response=json`;
-    const payload = await fetchJsonOptional<TpexTableResponse>(url);
-    const rows = payload?.tables?.[0]?.data;
-    const out = new Map<string, number>();
-    if (!rows) return out;
-
-    // 0 代號, 1 名稱, 2 前資餘額(張), 3 資買, 4 資賣, 5 現償, 6 資餘額(張)
-    for (const row of rows) {
-      const ticker = String(row[0] ?? "").trim();
-      const prior = parseNumber(row[2]);
-      const today = parseNumber(row[6]);
-      if (!ticker || prior === null || today === null) continue;
-      out.set(ticker, today - prior);
-    }
-    return out;
-  }
+  return collect(report, table.data, (row) => {
+    const ticker = String(row[code] ?? "").trim();
+    const before = parseNumber(row[prior]);
+    const after = parseNumber(row[today]);
+    if (!ticker || before === null || after === null) return null;
+    return [ticker, after - before];
+  });
 }
