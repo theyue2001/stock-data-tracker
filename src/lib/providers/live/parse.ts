@@ -37,6 +37,73 @@ export function rocToDate(value: string): Date | null {
   return rocCompactToDate(value) ?? rocSlashToDate(value);
 }
 
+/** Parses the "115年11月17日" date embedded in a TWSE report title. */
+export function rocTitleToDate(value: string): Date | null {
+  const match = /(\d{2,3})年(\d{1,2})月(\d{1,2})日/.exec(value);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  return utcDay(new Date(Date.UTC(Number(y) + ROC_OFFSET, Number(m) - 1, Number(d))));
+}
+
+/**
+ * The session a TWSE RWD payload actually describes, read from its own report
+ * titles ("115年11月17日 三大法人買賣超日報").
+ *
+ * The top-level `date` field is NOT that: it echoes the requested date back
+ * (FMTQIK answers `date: "20261117"` with a whole month of rows), so it cannot
+ * catch the exchange serving a different session than the one asked for.
+ */
+export function twseTitleDate(payload: {
+  title?: string;
+  tables?: Array<{ title?: string } | null | undefined>;
+}): Date | null {
+  const titles = [payload.title, ...(payload.tables ?? []).map((t) => t?.title)];
+  for (const title of titles) {
+    const date = title ? rocTitleToDate(title) : null;
+    if (date) return date;
+  }
+  return null;
+}
+
+/**
+ * True when a TWSE RWD report answered "很抱歉，沒有符合條件的資料" — which is
+ * what it says both for a session it has not published YET (T86 at 16:07 on
+ * the session day) and for a date that never traded. Callers that have already
+ * resolved a trading session read it as "not published", never as "zero".
+ */
+export function twseHasNoData(payload: { stat?: string } | null | undefined): boolean {
+  return !!payload?.stat && payload.stat.includes("沒有符合條件的資料");
+}
+
+/** Same calendar day, compared on the UTC-midnight storage key. */
+export function sameDay(a: Date, b: Date): boolean {
+  return utcDay(a).getTime() === utcDay(b).getTime();
+}
+
+/** "YYYY-MM-DD" of a UTC-midnight storage key, the form NotPublishedError carries. */
+export function dayString(date: Date): string {
+  return utcDay(date).toISOString().slice(0, 10);
+}
+
+/**
+ * Position of a named column. Throws, naming the report, when the column is
+ * gone — reading a report by array index keeps "working" after the exchange
+ * inserts a column, it just reads the wrong figure.
+ */
+export function fieldIndex(report: string, fields: string[] | undefined, name: string): number {
+  const index = (fields ?? []).indexOf(name);
+  if (index < 0) throw new Error(`${report} layout changed: no "${name}" column in [${(fields ?? []).join(", ")}]`);
+  return index;
+}
+
+/** Text content of a cell that arrives as an HTML fragment, e.g. the
+ *  `<p style= color:green>-</p>` sign cell in MI_INDEX 每日收盤行情. */
+export function cellText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/<[^>]*>/g, "")
+    .trim();
+}
+
 /** Parses the compact western "20260826" form used by the MIS real-time feed
  *  (unlike every after-hours report, MIS dates are Gregorian, not ROC). */
 export function westernCompactToDate(value: string): Date | null {
