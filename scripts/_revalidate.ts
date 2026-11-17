@@ -15,8 +15,24 @@
  * this runs, so a failure here is a staleness problem, not a job failure, and
  * must never turn a successful pipeline into a non-zero exit.
  */
+import type { PipelineResult } from "../src/lib/jobs/pipeline";
 
 const ROUTE = "/api/jobs/revalidate";
+
+/**
+ * The common tail of the CLI job scripts: print the outcome, expire the
+ * deployed cache when the run wrote anything (partial runs included — what
+ * they did write is what a stale page would hide), and exit non-zero only when
+ * the run failed outright. A skipped run (another holder has the pipeline
+ * lock, or the session is already complete) is not an error.
+ */
+export async function reportCliJob(label: string, result: PipelineResult): Promise<void> {
+  const parts = [result.status, result.session && `session ${result.session}`, result.skippedReason].filter(Boolean);
+  console.log(`[${label}] ${parts.join(" · ")}`);
+  if (result.summary) console.dir(result.summary, { depth: 4 });
+  if (result.wroteData) await revalidateDeployedCache(label);
+  if (result.status === "failed") process.exitCode = 1;
+}
 
 export async function revalidateDeployedCache(label = "job", tag?: "intraday"): Promise<void> {
   const appUrl = process.env.APP_URL?.trim();

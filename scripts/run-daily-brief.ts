@@ -1,14 +1,12 @@
-import { runDailyBriefJob } from "../src/lib/jobs/generate-daily-brief";
-import { revalidateDeployedCache } from "./_revalidate";
+import { runBriefJob } from "../src/lib/jobs/pipeline";
+import { CLI_LOCK } from "../src/lib/jobs/pipeline-lock";
+import { reportCliJob } from "./_revalidate";
 import { db } from "../src/lib/db";
 
-runDailyBriefJob()
-  .then(async (b) => {
-    console.log(`[brief] generated brief for ${b.date.toISOString().slice(0, 10)} via ${b.generatedBy}`);
-    await revalidateDeployedCache("brief");
-  })
+runBriefJob({ trigger: "cli", lock: CLI_LOCK })
+  .then((result) => reportCliJob("brief", result))
   .catch((e) => {
     console.error(e);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(() => db.$disconnect());

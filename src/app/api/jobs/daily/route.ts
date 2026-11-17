@@ -1,45 +1,23 @@
-import { latestPublishedSessionStored, runRefreshJob } from "@/lib/jobs/refresh-data";
-import { runAlertEngine } from "@/lib/jobs/generate-alerts";
-import { runDailyBriefJob } from "@/lib/jobs/generate-daily-brief";
-import { authorizeJob, ok } from "@/lib/api";
 import { connection } from "next/server";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/lib/cache-tags";
+import { authorizeJob } from "@/lib/api";
+import { runDailyPipeline } from "@/lib/jobs/pipeline";
+import { respondWithJob } from "@/lib/jobs/route-support";
+import { triggerFrom } from "@/lib/jobs/run-log";
 
 export const maxDuration = 300;
 
 /**
- * The full daily pipeline. Point a platform scheduler at this route every 5
- * minutes across the afternoon/evening — see latestPublishedSessionStored
- * for why polling this often is safe: it is a no-op on every run that has
- * nothing new to store. `npm run cron` runs the
- * same pipeline from a long-lived local scheduler instead.
+ * The after-hours pipeline. Built to be polled every 5 minutes from 13:30 to
+ * midnight Taipei (see .github/workflows/scheduled-jobs.yml): each call runs
+ * only what the newest published session still lacks, so a call with nothing
+ * to do costs one upstream request and a few reads. See runDailyPipeline for
+ * the completion and retry rules.
  */
 export async function POST(request: Request) {
   await connection();
   const auth = authorizeJob(request);
   if (!auth.ok) return auth.response;
-
-  // Each invocation here is a fresh process with no memory of an earlier
-  // success (unlike scripts/cron.ts's long-running one), so the skip has to be
-  // re-derived from stored state on every call.
-  if (await latestPublishedSessionStored()) {
-    return ok({ skipped: true, reason: "the latest published session is already stored" });
-  }
-
-  const refresh = await runRefreshJob();
-  const alertsCreated = await runAlertEngine();
-  const brief = await runDailyBriefJob();
-
-  // Expire the cached read layer once, after the whole pipeline has written,
-  // so no screen can show a half-updated session.
-  revalidateTag(CACHE_TAGS.radarData, "max");
-
-  return ok({
-    refresh,
-    alertsCreated,
-    brief: { date: brief.date, generatedBy: brief.generatedBy },
-  });
+  return respondWithJob(() => runDailyPipeline({ trigger: triggerFrom(request) }));
 }
 
 // Vercel Cron only sends GET; alias it to the same handler.

@@ -1,14 +1,12 @@
-import { runAlertEngine } from "../src/lib/jobs/generate-alerts";
-import { revalidateDeployedCache } from "./_revalidate";
+import { runAlertsJob } from "../src/lib/jobs/pipeline";
+import { CLI_LOCK } from "../src/lib/jobs/pipeline-lock";
+import { reportCliJob } from "./_revalidate";
 import { db } from "../src/lib/db";
 
-runAlertEngine()
-  .then(async (n) => {
-    console.log(`[alerts] created ${n} new alert(s)`);
-    await revalidateDeployedCache("alerts");
-  })
+runAlertsJob({ trigger: "cli", lock: CLI_LOCK })
+  .then((result) => reportCliJob("alerts", result))
   .catch((e) => {
     console.error(e);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(() => db.$disconnect());

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { utcDay } from "@/lib/dates";
+import { utcDay, utcDateKey } from "@/lib/dates";
+import { latestScoredSession, sessionCloseAt } from "@/lib/jobs/sessions";
 
 /** How many sessions of industry flow the rules look back over. */
 const FLOW_WINDOW = 20;
@@ -16,14 +17,34 @@ interface NewAlert {
   stockIds?: string[];
 }
 
+export interface AlertRun {
+  /** YYYY-MM-DD session the alerts describe. */
+  session: string;
+  /** Rules that fired. */
+  candidates: number;
+  /** Alerts inserted; the rest already existed for this session. */
+  created: number;
+}
+
 /**
- * Rule-based alert engine (spec §7). Evaluates the latest data already in
- * the database (populated by the seed script / mock providers) against a
- * fixed set of rules and inserts new Alert rows. Idempotent per calendar
- * day + rule + industry so re-running the job repeatedly is safe.
+ * Rule-based alert engine (spec §7) for one market session.
+ *
+ * Idempotent per (session, rule, industry), and the session is the key — not
+ * the day the job runs. Every alert about a session is stamped with that
+ * session's close (13:30 Taipei, see sessionCloseAt), and the dedupe matches
+ * that exact stamp. Keyed by execution day instead, a rerun after UTC midnight
+ * (a late safety-net cron, a morning retry) re-created every alert of the
+ * previous evening. Visible effect: the watchlist's alert time now reads the
+ * session close rather than when the job ran; `createdAt` still records the
+ * insert time.
+ *
+ * Alerts written before this change carry their execution time, so the first
+ * run after deploying can repeat an alert already raised for the same session
+ * once; from then on the stamp is stable.
  */
-export async function runAlertEngine(referenceDate: Date = new Date()): Promise<number> {
-  const today = utcDay(referenceDate);
+export async function evaluateAlerts(sessionInput: Date): Promise<AlertRun> {
+  const session = utcDay(sessionInput);
+  const stamp = sessionCloseAt(session);
   const candidates: NewAlert[] = [];
 
   const industries = await db.industry.findMany({
@@ -32,8 +53,10 @@ export async function runAlertEngine(referenceDate: Date = new Date()): Promise<
       // MUST filter by scope: an industry also owns its stocks' stock-scope
       // flow rows, and mixing them would compute streaks and turnover
       // averages over an interleaved series rather than the industry's own.
-      flows: { where: { scope: "industry" }, orderBy: { date: "desc" }, take: FLOW_WINDOW },
-      stocks: { include: { marketData: { orderBy: { date: "desc" }, take: 2 } } },
+      // Bounded by the session so a rerun for an older session reads that
+      // session's data, not whatever arrived since.
+      flows: { where: { scope: "industry", date: { lte: session } }, orderBy: { date: "desc" }, take: FLOW_WINDOW },
+      stocks: { include: { marketData: { where: { date: { lte: session } }, orderBy: { date: "desc" }, take: 2 } } },
     },
   });
 
@@ -80,7 +103,12 @@ export async function runAlertEngine(referenceDate: Date = new Date()): Promise<
     }
 
     // 3. Foreign investors net-buying an industry for 3+ consecutive sessions.
-    const flows = industry.flows; // newest first
+    // Only when the session's own flow row exists. If T86 never arrived (the
+    // pipeline finalizes without it after its deadline), the newest row is the
+    // previous session's, and re-raising yesterday's streak under today's stamp
+    // would report a signal nobody measured today.
+    const hasSessionFlow = !!industry.flows[0] && utcDateKey(industry.flows[0].date) === utcDateKey(session);
+    const flows = hasSessionFlow ? industry.flows : []; // newest first
     if (flows.length >= 3) {
       let streak = 0;
       for (const f of flows) {
@@ -168,7 +196,7 @@ export async function runAlertEngine(referenceDate: Date = new Date()): Promise<
       where: {
         ruleKey: c.ruleKey,
         industryId: c.industryId,
-        timestamp: { gte: today },
+        timestamp: stamp,
       },
     });
     if (exists) continue;
@@ -183,7 +211,7 @@ export async function runAlertEngine(referenceDate: Date = new Date()): Promise<
         sourceIndicator: c.sourceIndicator,
         change: c.change,
         explanation: c.explanation,
-        timestamp: referenceDate,
+        timestamp: stamp,
         stocks: c.stockIds
           ? { create: c.stockIds.map((stockId) => ({ stockId })) }
           : undefined,
@@ -192,5 +220,15 @@ export async function runAlertEngine(referenceDate: Date = new Date()): Promise<
     created++;
   }
 
-  return created;
+  return { session: utcDateKey(session), candidates: candidates.length, created };
+}
+
+/**
+ * Number of alerts created for `session`, or for the newest scored session
+ * when none is given (the standalone `jobs:alerts` entry point).
+ */
+export async function runAlertEngine(session?: Date): Promise<number> {
+  const target = session ?? (await latestScoredSession());
+  if (!target) return 0;
+  return (await evaluateAlerts(target)).created;
 }

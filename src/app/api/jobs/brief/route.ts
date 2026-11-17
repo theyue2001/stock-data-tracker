@@ -1,16 +1,17 @@
-import { runDailyBriefJob } from "@/lib/jobs/generate-daily-brief";
-import { authorizeJob, ok } from "@/lib/api";
-import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/lib/cache-tags";
+import { connection } from "next/server";
+import { authorizeJob } from "@/lib/api";
+import { runBriefJob } from "@/lib/jobs/pipeline";
+import { respondWithJob } from "@/lib/jobs/route-support";
+import { triggerFrom } from "@/lib/jobs/run-log";
 
 export const maxDuration = 120;
 
+/** (Re)generates the daily brief for the newest scored session. */
 export async function POST(request: Request) {
+  await connection();
   const auth = authorizeJob(request);
   if (!auth.ok) return auth.response;
-  const brief = await runDailyBriefJob();
-  revalidateTag(CACHE_TAGS.radarData, "max");
-  return ok({ date: brief.date, generatedBy: brief.generatedBy });
+  return respondWithJob(() => runBriefJob({ trigger: triggerFrom(request) }));
 }
 
 // Vercel Cron only sends GET; alias it to the same handler.

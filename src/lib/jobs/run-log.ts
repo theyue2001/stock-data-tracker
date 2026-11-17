@@ -125,6 +125,26 @@ export function triggerFrom(request: Request): JobTrigger {
   return "route";
 }
 
+/**
+ * Marks an error with the DataSource key of the provider that raised it, so a
+ * failed or waiting DatasetRun still names its source — the health page groups
+ * by (dataset, provider), and an unattributed failure would sit in a group of
+ * its own. Returns the same error, for `throw attributeTo(err, key)`.
+ */
+export function attributeTo<E>(err: E, provider: string): E {
+  if (err && typeof err === "object" && typeof (err as { provider?: unknown }).provider !== "string") {
+    (err as { provider?: string }).provider = provider;
+  }
+  return err;
+}
+
+/** The provider an error was attributed to, else the source a NotPublishedError names. */
+function providerOf(err: unknown): string | null {
+  const tagged = (err as { provider?: unknown } | null)?.provider;
+  if (typeof tagged === "string") return tagged;
+  return err instanceof NotPublishedError ? err.source : null;
+}
+
 export function deriveRunStatus(statuses: readonly DatasetStatus[]): RunStatus {
   if (statuses.length === 0) return "success";
   const failed = statuses.filter((s) => s === "failed").length;
@@ -212,7 +232,7 @@ export async function startJobRun(job: JobName, trigger: JobTrigger, opts: { ses
       } catch (err) {
         const status: DatasetStatus = err instanceof NotPublishedError ? "waiting" : "failed";
         if (status === "failed") console.error(`[${job}] ${dataset} failed:`, errorText(err));
-        await write(toRecord(dataset, { status }, Date.now() - t0.getTime(), err), t0);
+        await write(toRecord(dataset, { status, provider: providerOf(err) }, Date.now() - t0.getTime(), err), t0);
         return { status, ok: false, error: err };
       }
     },

@@ -7,6 +7,7 @@ import { loadIndustryMomentum, loadSentimentBriefHighlights, type IndustrySentim
 import { componentParticipated } from "@/lib/scoring";
 import { SENTIMENT_STATUS_LABEL } from "@/lib/types";
 import { utcDay, utcDayOffset } from "@/lib/dates";
+import { latestScoredSession } from "@/lib/jobs/sessions";
 
 /** Renders one industry's sentiment reading as the single factual sentence
  *  the brief quotes. Shared by all five highlight lists so a group reads
@@ -33,22 +34,28 @@ function arr(v: unknown): string[] {
 }
 
 /**
- * Aggregates today's data across industries, indicators, flows, catalysts,
- * and alerts into an AI context, generates the brief, and upserts the
- * DailyBrief row for today. Intended to run once per day (see
- * scripts/run-daily-brief-job.ts for the cron entry point) but is also
- * safe to call on-demand from an API route.
+ * Aggregates one session's data across industries, indicators, flows,
+ * catalysts and alerts into an AI context, generates the brief, and upserts
+ * the DailyBrief row for that SESSION.
+ *
+ * `DailyBrief.date` is the session the brief describes, not the day the job
+ * ran: the after-hours pipeline finishes in the evening and may be retried
+ * after UTC midnight, and a brief keyed by execution day was dated a day late
+ * (or written twice) whenever that happened. Without a session argument it
+ * describes the newest scored session.
  */
-export async function runDailyBriefJob(referenceDate: Date = new Date()) {
-  const today = utcDay(referenceDate);
+export async function runDailyBriefJob(sessionInput?: Date) {
+  const resolved = sessionInput ?? (await latestScoredSession());
+  if (!resolved) throw new Error("no scored session to write a daily brief for");
+  const today = utcDay(resolved);
   const weekAgo = utcDayOffset(today, 7);
 
   const [marketStatus, industries, catalysts, alerts, watchlist, momentum, highlights] = await Promise.all([
     db.marketStatus.findFirst({ where: { date: { lte: today } }, orderBy: { date: "desc" } }),
     db.industry.findMany({
       include: {
-        scores: { orderBy: { date: "desc" }, take: 10 },
-        flows: { where: { scope: "industry" }, orderBy: { date: "desc" }, take: 1 },
+        scores: { where: { date: { lte: today } }, orderBy: { date: "desc" }, take: 10 },
+        flows: { where: { scope: "industry", date: { lte: today } }, orderBy: { date: "desc" }, take: 1 },
       },
     }),
     db.catalyst.findMany({
