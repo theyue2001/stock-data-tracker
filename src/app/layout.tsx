@@ -4,7 +4,8 @@ import { Archivo, IBM_Plex_Mono, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
 import { MobileNav, MobileNavFallback, SideNav, SideNavFallback } from "@/components/layout/nav";
-import { FooterDate } from "@/components/layout/footer-date";
+import { FooterDate, FooterDateFallback } from "@/components/layout/footer-date";
+import { LiveChrome } from "@/components/live/live-chrome";
 
 const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700", "800", "900"] });
 const notoTC = Noto_Sans_TC({ variable: "--font-noto-tc", subsets: ["latin"], display: "swap", weight: ["400", "500", "700", "900"] });
@@ -51,7 +52,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </Suspense>
             </div>
             <div className="px-4 py-3.5 font-mono text-[10px] leading-[1.8] text-[rgba(243,242,242,.45)]" style={{ borderTop: "1px solid rgba(243,242,242,.14)" }}>
-              <FooterDate />
+              <Suspense fallback={<FooterDateFallback />}>
+                <FooterDate />
+              </Suspense>
             </div>
           </aside>
 
@@ -69,7 +72,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <MobileNav />
               </Suspense>
             </div>
-            <main className="min-w-0 flex-1 bg-[var(--rd-bg)] text-[var(--rd-text)]">{children}</main>
+            <main className="min-w-0 flex-1 bg-[var(--rd-bg)] text-[var(--rd-text)]">
+              {/* Stale-data banner + the app's single /api/live poller. Here,
+                  not in a page, so it mounts once and survives navigation. */}
+              <Suspense fallback={null}>
+                <LiveChrome />
+              </Suspense>
+              {children}
+            </main>
           </div>
         </div>
       </body>

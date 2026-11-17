@@ -6,6 +6,7 @@ import { Panel, PanelRows } from "@/components/radar/panel";
 import { StatusChip } from "@/components/radar/status-chip";
 import { flowWord, trendFromDelta, INDUSTRY_STATUS_BADGE, STOCK_STATUS_BADGE, directionColor, displayRs } from "@/lib/radar-ui";
 import { num, pct } from "@/lib/format";
+import { taipeiStamp } from "@/lib/live/labels";
 import type { IndustryStatus, StockStatus } from "@/lib/types";
 
 export default async function WatchlistPage() {
@@ -28,7 +29,10 @@ export default async function WatchlistPage() {
                   <span className="mt-[5px] h-[7px] w-[7px] shrink-0" style={{ background: "var(--rd-accent)" }} />
                   <span className="min-w-0 flex-1 text-[12px] leading-[1.55] font-medium">{a.title}</span>
                   <span className="shrink-0 font-mono text-[9.5px] text-[rgba(243,242,242,.38)]">
-                    {new Date(a.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    {/* Server-rendered, so the zone is pinned (a UTC host would print 05:30
+                        for a 13:30 session close), and dated, since an alert's timestamp is
+                        its session's close and the time alone no longer tells sessions apart. */}
+                    {taipeiStamp(a.timestamp)}
                   </span>
                 </div>
               ))}

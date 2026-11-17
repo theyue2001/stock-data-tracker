@@ -1,7 +1,9 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/lib/db";
 import { CACHE_TAGS } from "@/lib/cache-tags";
-import { taipeiToday, utcDay, utcDayOffset } from "@/lib/dates";
+import { utcDay, utcDayOffset } from "@/lib/dates";
+import { dataStampOf, type DataStamp, type IntradayRow } from "@/lib/live/snapshot";
+import { readDataSources, readIntradayRow } from "@/lib/live/sources";
 import { componentParticipated, scoreChangeTrend, scoreIsLowConfidence } from "@/lib/scoring";
 import type { IndustryStatus, RiskLevel, StockStatus, TechnicalTrend, ValuationPosition } from "@/lib/types";
 
@@ -133,45 +135,42 @@ export async function getMarketStatus() {
 }
 
 /**
- * The most recent intraday TAIEX tick, if the market is open today and the
- * poller has written one. Deliberately its own cached function on the
+ * The newest stored intraday TAIEX tick, with the session it belongs to and
+ * when it was written. Deliberately its own cached function on the
  * `intraday` tag (see CACHE_TAGS.intraday) rather than folded into
  * getMarketStatus: that function sits on the `days`-lifetime `radarData` tag,
  * and a minute-cadence caller bumping it would force every other radar read
  * to recompute for a number only the TAIEX cell shows.
  *
- * Returns null once the row is for a prior session (weekend, holiday, or
- * simply before today's first tick lands) — a stale intraday figure would
- * read as "still moving" next to a close that already settled. On a holiday
- * that means no badge at all, which is what makes it safe for the poller to
- * keep running: MIS answers a closed market with the LAST session's tick, and
- * that row is keyed to its own date, not to today.
- *
- * Keyed on the Taipei date, not `utcDay()`: the stored date comes from the
- * feed's own Taiwan trading-calendar stamp, and the two only agree between
- * 00:00 and 16:00 UTC. They do agree across the whole 08:30-13:30 session, so
- * the wrong one still looks correct while the market is open and diverges
- * only in the evening.
+ * Returns the row whatever its date, and decides nothing about whether it is
+ * "live". It used to return only a row dated `taipeiToday()` and let its mere
+ * presence mean 盤中, which kept the 13:30 print labelled 盤中 until midnight
+ * and never noticed a poller that had stopped. Live-ness depends on the clock
+ * (market phase, tick age), and a cached function must not read the clock —
+ * it would freeze the answer for the cache's lifetime. `describeTaiex` in
+ * src/lib/live/labels.ts makes that call, in the browser and per request in
+ * /api/live, and prefers this tick over the stored close only while the
+ * tick's session is newer than the newest close.
  */
-export async function getIntradayIndex() {
+export async function getIntradayIndex(): Promise<IntradayRow | null> {
   "use cache";
   cacheLife("minutes");
   cacheTag(CACHE_TAGS.intraday);
+  return readIntradayRow();
+}
 
-  const row = await db.intradayIndex.findUnique({
-    where: { index_date: { index: "TAIEX", date: taipeiToday() } },
-  });
-  if (!row) return null;
-
-  return {
-    last: row.last,
-    change: row.change,
-    changePct: row.changePct,
-    high: row.high,
-    low: row.low,
-    tickAt: row.tickAt,
-    isMock: row.isMock,
-  };
+/**
+ * Newest stored sessions, when after-hours data last landed, and the
+ * `dataVersion` token GET /api/live compares against. On the same tag and
+ * lifetime as every after-hours read, so a render's stamp always describes
+ * the data that render was built from: a job that expires `radar-data`
+ * changes both at once.
+ */
+export async function getDataStamp(): Promise<DataStamp> {
+  "use cache";
+  cacheLife("days");
+  cacheTag(CACHE_TAGS.radarData);
+  return dataStampOf(await readDataSources());
 }
 
 export async function getIndustryRadar(): Promise<IndustryRadarRow[]> {

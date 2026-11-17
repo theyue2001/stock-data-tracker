@@ -21,7 +21,9 @@ export default async function DailyBriefPage() {
     <PageShell maxWidth={920}>
       <PageHeader
         title="每日市場簡報"
-        note={`${brief.date} · ${new Date(brief.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })} 生成`}
+        // Pinned to Asia/Taipei: this renders on the server, which on Vercel
+        // runs in UTC and would print the generation time 8 hours early.
+        note={`${brief.date} · ${new Date(brief.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Taipei" })} 生成`}
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">

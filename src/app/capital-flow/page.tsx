@@ -9,6 +9,7 @@ import { StatusChip } from "@/components/radar/status-chip";
 import { RankChange } from "@/components/sentiment/rank-change";
 import { directionColor, tint, yiFlow } from "@/lib/radar-ui";
 import { SENTIMENT_STATUS_BADGE, sentimentTextColor } from "@/lib/sentiment-ui";
+import { mmddWeekday } from "@/lib/live/labels";
 
 const COLUMNS = "104px 96px 84px 84px 84px 84px 68px 84px minmax(190px,1fr)";
 
@@ -56,11 +57,19 @@ export default async function CapitalFlowPage() {
   const inflow3 = byD5.filter((f) => f.d5 > 0).slice(0, 3);
   const outflow3 = byD5.filter((f) => f.d5 < 0).slice(-3).reverse();
 
+  // The session the heatmap's industry flows describe (the newest any
+  // industry reported), shown instead of a generic 「收盤更新」 that never
+  // said which close. The market-wide KPIs below carry their own date.
+  const flowSession = rows.reduce<string | null>((latest, r) => {
+    const d = r.history.at(-1)?.date ?? null;
+    return d && (!latest || d > latest) ? d : latest;
+  }, null);
+
   return (
     <PageShell>
       <PageHeader
         title="資金流向"
-        note="單位：億元 · 收盤更新"
+        note={flowSession ? `單位：億元 · ${mmddWeekday(flowSession)} 盤後資料` : "單位：億元 · 尚無法人資料"}
         subtitle="法人 × 產業 · 看見資金正在離開誰、進入誰"
       />
 
