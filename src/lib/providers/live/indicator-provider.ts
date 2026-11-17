@@ -31,9 +31,18 @@ import { utcDay } from "@/lib/dates";
  */
 
 const SEC_CONCEPT = "https://data.sec.gov/api/xbrl/companyconcept";
-/** SEC asks automated clients to identify themselves; an anonymous UA is
- *  rate-limited hard and eventually blocked. */
-const SEC_HEADERS = { "User-Agent": "stock-data-tracker (contact: contact@example.com)" };
+/**
+ * SEC asks automated clients to identify themselves with a contact in the
+ * User-Agent; an anonymous UA is rate-limited hard and eventually blocked.
+ * The contact is the operator's, so it comes from SEC_USER_AGENT (for example
+ * "stock-data-tracker (contact: you@example.com)") and is never committed.
+ * Unset, the hyperscaler capex series is skipped rather than fetched
+ * anonymously.
+ */
+export function secHeaders(env: Record<string, string | undefined> = process.env): Record<string, string> | null {
+  const userAgent = env.SEC_USER_AGENT?.trim();
+  return userAgent ? { "User-Agent": userAgent } : null;
+}
 
 const DAY_MS = 86_400_000;
 
@@ -115,7 +124,12 @@ export class SecHyperscalerCapexProvider implements IndicatorProvider {
   };
 
   async fetchLatest(): Promise<IndicatorResult[]> {
-    const perCompany = await Promise.all(HYPERSCALERS.map((h) => this.fetchCompanyQuarters(h)));
+    const headers = secHeaders();
+    if (!headers) {
+      console.warn("[indicators] hyperscaler capex skipped: SEC_USER_AGENT is not set (SEC requires a contact in the User-Agent)");
+      return [];
+    }
+    const perCompany = await Promise.all(HYPERSCALERS.map((h) => this.fetchCompanyQuarters(h, headers)));
     const reporting = perCompany.filter((m) => m.size > 0);
     // If a feed is unreachable, emitting a sum over the survivors would show
     // up as a capex collapse rather than as missing data.
@@ -168,11 +182,14 @@ export class SecHyperscalerCapexProvider implements IndicatorProvider {
 
   /** Every calendar quarter this filer has published, merged across all of
    *  its candidate tags. */
-  private async fetchCompanyQuarters(company: (typeof HYPERSCALERS)[number]): Promise<Map<string, QuarterFact>> {
+  private async fetchCompanyQuarters(
+    company: (typeof HYPERSCALERS)[number],
+    headers: Record<string, string>,
+  ): Promise<Map<string, QuarterFact>> {
     const quarters = new Map<string, QuarterFact>();
     for (const tag of company.tags) {
       const url = `${SEC_CONCEPT}/CIK${company.cik}/us-gaap/${tag}.json`;
-      const payload = await fetchJsonOptional<SecConcept>(url, { headers: SEC_HEADERS });
+      const payload = await fetchJsonOptional<SecConcept>(url, { headers });
       const facts = payload?.units?.USD;
       if (!facts?.length) continue;
       collectQuarters(facts, quarters);

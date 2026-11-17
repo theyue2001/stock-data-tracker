@@ -503,6 +503,9 @@ DATABASE_URL_UNPOOLED="postgresql://user:pass@host:5432/db?sslmode=require"
 # Provider set. Live is the default; "mock" restores the synthetic dataset.
 DATA_MODE="live"            # live | mock
 
+# Contact sent as the User-Agent to SEC EDGAR; unset skips the hyperscaler capex indicator.
+SEC_USER_AGENT=""           # "stock-data-tracker (contact: you@example.com)"
+
 # AI provider — omit for the rule-based mock
 AI_PROVIDER="mock"          # mock | openai | claude
 OPENAI_API_KEY=""
