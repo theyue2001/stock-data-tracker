@@ -54,6 +54,7 @@
 import { db } from "../src/lib/db";
 import { utcDay } from "../src/lib/dates";
 import { BlockedError, BudgetExhaustedError, requestsMade, setRequestBudget } from "../src/lib/providers/live/http";
+import { NotPublishedError } from "../src/lib/providers/errors";
 import {
   aggregateIndustryFlows,
   ensureDataSource,
@@ -85,6 +86,8 @@ import {
   DerivedOdmRevenueProvider,
   SecHyperscalerCapexProvider,
 } from "../src/lib/providers/live/indicator-provider";
+import { DATASETS, startJobRun, type DatasetKey, type DatasetStatus, type JobRunHandle } from "../src/lib/jobs/run-log";
+import { alreadyRunningReason, PIPELINE_LOCK_TTL_MS, withPipelineLock } from "../src/lib/jobs/pipeline-lock";
 import { revalidateDeployedCache } from "./_revalidate";
 
 type Leg =
@@ -139,6 +142,29 @@ const WARMUP_SESSIONS = 30;
  */
 const MIN_FLOW_SESSIONS = 40;
 
+/**
+ * The backfill writes the same tables as the daily pipeline, so it holds the
+ * shared pipeline lease for its whole run (polls in the meantime log
+ * `skipped`). It can take an hour against the throttled host; the lease is
+ * renewed for up to this long, after which a hung run lets it lapse.
+ */
+const BACKFILL_MAX_HOLD_MS = 4 * 60 * 60_000;
+
+/** The dataset each leg writes, for its DatasetRun row (session: null — a leg spans many). */
+const LEG_DATASET: Record<Leg, DatasetKey> = {
+  sessions: DATASETS.marketStatus,
+  "seed-prices": DATASETS.prices,
+  "seed-flows": DATASETS.flows,
+  prices: DATASETS.prices,
+  fundamentals: DATASETS.fundamentals,
+  flows: DATASETS.flows,
+  "status-detail": DATASETS.marketStatus,
+  indicators: DATASETS.indicators,
+  recompute: DATASETS.scores,
+};
+
+let jobRun: JobRunHandle | null = null;
+
 interface Options {
   months: number;
   /** Left undefined by default and resolved in `main` once the trading
@@ -184,25 +210,54 @@ function parseArgs(argv: string[]): Options {
  * because each leg writes as it goes and the next leg may target a different,
  * unthrottled host.
  */
-async function leg(name: string, run: () => Promise<void>): Promise<boolean> {
+async function leg(name: Leg, run: () => Promise<void>): Promise<boolean> {
+  const startedAt = Date.now();
+  // One DatasetRun per leg, so the health page shows which leg stopped and why.
+  const log = (status: DatasetStatus, extra: { error?: unknown; note?: string } = {}) =>
+    jobRun?.record(LEG_DATASET[name], { status, provider: name, session: null, durationMs: Date.now() - startedAt, ...extra });
   try {
     await run();
+    await log("success");
     return true;
   } catch (error) {
     if (error instanceof BudgetExhaustedError) {
       console.warn(`[backfill] ${name}: request budget spent — stopping this leg cleanly`);
+      await log("partial", { note: "request budget spent — re-run to continue" });
       return false;
     }
     if (error instanceof BlockedError) {
       console.warn(`[backfill] ${name}: BLOCKED — ${error.message}`);
+      await log("failed", { error });
       return false;
     }
     console.error(`[backfill] ${name}: ${(error as Error).message}`);
+    await log("failed", { error });
     return false;
   }
 }
 
 async function main() {
+  jobRun = await startJobRun("backfill", "cli");
+  const locked = await withPipelineLock(backfill, { ttlMs: PIPELINE_LOCK_TTL_MS, maxHoldMs: BACKFILL_MAX_HOLD_MS });
+  if (!locked.acquired) {
+    const reason = alreadyRunningReason(locked);
+    await jobRun.finish("skipped", { reason });
+    console.warn(`[backfill] not started: the pipeline is ${reason}`);
+    process.exitCode = 1;
+    return;
+  }
+  await jobRun.finish(undefined, { reason: locked.value });
+
+  // This script rewrites the widest slice of exactly what the cached page reads
+  // serve, so it is the LAST place that should be left out of the invalidation
+  // the daily jobs already do. Without this, a backfill lands in the database
+  // and the deployed site keeps serving the pre-backfill dataset for up to a
+  // day. Never throws, and no-ops when APP_URL is unset — see _revalidate.ts.
+  await revalidateDeployedCache("backfill");
+}
+
+/** The backfill proper, run under the pipeline lease. Returns the JobRun reason. */
+async function backfill(): Promise<string | null> {
   const opts = parseArgs(process.argv.slice(2));
   const now = new Date();
   const from = utcDay(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - opts.months, 1)));
@@ -332,14 +387,13 @@ async function main() {
   }
 
   console.log(`[backfill] spent ${requestsMade(TWSE_HOST)}/${opts.maxRequests} requests to ${TWSE_HOST}`);
-  await report(from, to, opts, flowTarget, blocked);
-
-  // This script rewrites the widest slice of exactly what the cached page reads
-  // serve, so it is the LAST place that should be left out of the invalidation
-  // the daily jobs already do. Without this, a backfill lands in the database
-  // and the deployed site keeps serving the pre-backfill dataset for up to a
-  // day. Never throws, and no-ops when APP_URL is unset — see _revalidate.ts.
-  await revalidateDeployedCache("backfill");
+  const remaining = await report(from, to, opts, flowTarget, blocked);
+  return [
+    blocked.length ? `blocked legs: ${blocked.join(", ")}` : null,
+    `remaining units of work: ~${remaining}`,
+  ]
+    .filter(Boolean)
+    .join("; ");
 }
 
 /** Drops tickers that are not listed on either board — merged or delisted. */
@@ -417,7 +471,18 @@ async function backfillFlows(stocks: TrackedStock[], window: Date[]): Promise<vo
   let rows = 0;
 
   for (const date of pending) {
-    const results = await provider.fetchForDate(stocks, date);
+    let results;
+    try {
+      results = await provider.fetchForDate(stocks, date);
+    } catch (error) {
+      // The newest session in the window is often not published yet (the
+      // window runs newest first, and T86 lags the close). Skip that one day
+      // rather than ending the leg; the daily pipeline fetches it once it is out.
+      if (!(error instanceof NotPublishedError)) throw error;
+      console.warn(`[backfill] flows: ${date.toISOString().slice(0, 10)} not published yet — skipped`);
+      done++;
+      continue;
+    }
     rows += await writeStockFlows(results, stocks, sourceId, false);
     await aggregateIndustryFlows(date, sourceId, false);
     done++;
@@ -629,7 +694,7 @@ async function report(
   opts: Options,
   flowTarget: number,
   blocked: string[],
-): Promise<void> {
+): Promise<number> {
   const stocks = await loadTrackedStocks();
   const months = monthStarts(from, to).length;
   const coverage = await loadPriceCoverage();
@@ -666,6 +731,7 @@ async function report(
     );
   }
   console.log(`[backfill] remaining units of work: ~${remaining}${remaining ? " — re-run to continue" : " — complete"}`);
+  return remaining;
 }
 
 function monthStarts(from: Date, to: Date): Date[] {
@@ -680,8 +746,9 @@ function monthStarts(from: Date, to: Date): Date[] {
 }
 
 main()
-  .catch((e) => {
+  .catch(async (e) => {
     console.error(e);
-    process.exit(1);
+    await jobRun?.finish("failed", { error: e });
+    process.exitCode = 1;
   })
   .finally(() => db.$disconnect());

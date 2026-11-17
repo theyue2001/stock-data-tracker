@@ -29,7 +29,10 @@
 import { readFileSync } from "node:fs";
 import { db } from "../src/lib/db";
 import { ensureDataSource, writeIndicatorValues } from "../src/lib/jobs/persist";
+import { DATASETS, startJobRun, type JobRunHandle } from "../src/lib/jobs/run-log";
+import { alreadyRunningReason, CLI_LOCK, withPipelineLock } from "../src/lib/jobs/pipeline-lock";
 import type { IndicatorResult } from "../src/lib/providers/types";
+import { revalidateDeployedCache } from "./_revalidate";
 
 const MANUAL_SOURCE = {
   key: "manual-indicator-import",
@@ -123,18 +126,27 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
+let jobRun: JobRunHandle | null = null;
+
 async function main() {
+  jobRun = await startJobRun("import-indicators", "cli");
+  const run = jobRun;
+  const reject = async (reason: string) => {
+    await run.finish("failed", { reason });
+    process.exitCode = 1;
+  };
+
   const path = process.argv[2];
   if (!path) {
     console.error("usage: npm run import:indicators -- <file.csv>");
-    process.exit(1);
+    return reject("no CSV path given");
   }
 
   const { rows, errors } = parseCsv(readFileSync(path, "utf-8"));
   for (const error of errors) console.error(`[import] ${error}`);
   if (!rows.length) {
     console.error("[import] nothing to import");
-    process.exit(1);
+    return reject(errors.length ? `nothing to import (${errors.length} invalid lines)` : "nothing to import");
   }
 
   // Reject unknown keys before writing anything. A typo would otherwise be
@@ -144,18 +156,49 @@ async function main() {
   if (unknown.length) {
     console.error(`[import] unknown indicator keys: ${unknown.join(", ")}`);
     console.error("[import] known keys:", [...known].sort().join(", "));
-    process.exit(1);
+    return reject(`unknown indicator keys: ${unknown.join(", ")}`);
   }
 
-  const sourceId = await ensureDataSource(MANUAL_SOURCE);
-  const written = await writeIndicatorValues(rows, sourceId, false);
+  // Under the pipeline lease: a concurrent pipeline run upserting the same
+  // (indicator, date) would race this one on the unique key.
+  const locked = await withPipelineLock(
+    () =>
+      run.dataset(DATASETS.indicators, async () => {
+        const sourceId = await ensureDataSource(MANUAL_SOURCE);
+        const written = await writeIndicatorValues(rows, sourceId, false);
+        const newest = rows.reduce((a, r) => (r.date > a ? r.date : a), rows[0].date);
+        return {
+          value: written,
+          outcome: { received: rows.length, persisted: written, provider: MANUAL_SOURCE.key, session: null, sourceAsOf: newest },
+        };
+      }),
+    CLI_LOCK,
+  );
+  if (!locked.acquired) {
+    const reason = alreadyRunningReason(locked);
+    console.error(`[import] not imported: the pipeline is ${reason} — try again shortly`);
+    await run.finish("skipped", { reason });
+    process.exitCode = 1;
+    return;
+  }
+
+  const status = await run.finish(undefined, { reason: errors.length ? `${errors.length} invalid lines skipped` : null });
+  if (status === "failed") {
+    process.exitCode = 1;
+    return;
+  }
+  const written = locked.value.value ?? 0;
   console.log(`[import] wrote ${written} values across ${new Set(rows.map((r) => r.indicatorKey)).size} indicators`);
-  console.log("[import] run `npm run jobs:refresh` to fold them into today's scores");
+  if (written) await revalidateDeployedCache("import");
+  // The pipeline treats a scored session as final, so new indicator values
+  // reach the scores on the next session — or now, with a forced refresh.
+  console.log("[import] run `npm run jobs:refresh -- --force` to fold them into the latest session's scores now");
 }
 
 main()
-  .catch((e) => {
+  .catch(async (e) => {
     console.error(e);
-    process.exit(1);
+    await jobRun?.finish("failed", { error: e });
+    process.exitCode = 1;
   })
   .finally(() => db.$disconnect());
