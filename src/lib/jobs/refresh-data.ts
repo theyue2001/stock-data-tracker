@@ -196,7 +196,11 @@ export async function refreshPrices(ctx: SessionContext): Promise<StepResult<Pri
 
   for (const provider of marketDataProviders) {
     providers.push(provider.source.key);
-    const quotes = await ask(provider, () => provider.fetchLatest(ctx.stocks));
+    // fetchSession pins the session; fetchLatest would let the feed pick it
+    // (the filter below still drops anything dated otherwise).
+    const quotes = await ask(provider, () =>
+      provider.fetchSession ? provider.fetchSession(ctx.stocks, ctx.session) : provider.fetchLatest(ctx.stocks),
+    );
     const forSession = quotes.filter((q) => sameSession(q.date, ctx.session));
     for (const q of quotes) if (!sameSession(q.date, ctx.session)) otherDates.add(isoDay(q.date));
     if (!forSession.length) continue;
@@ -494,26 +498,6 @@ function derivedOutcome(written: number, provisional: boolean): DatasetOutcome {
     expected: written,
     note: provisional ? "flows waiting: computed without the session's institutional flow" : null,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Transitional API
-// ---------------------------------------------------------------------------
-// scripts/cron.ts still imports the pre-pipeline gate and refresh entry point
-// on this branch; it moves to runDailyPipeline in a separate change. These keep
-// it compiling and route it through the planned, locked, logged pipeline.
-// Delete both once nothing imports them.
-
-/** @deprecated Use runDailyPipeline, which decides per dataset what is missing. */
-export async function latestPublishedSessionStored(): Promise<boolean> {
-  const { pipelineHasWork } = await import("./pipeline");
-  return !(await pipelineHasWork());
-}
-
-/** @deprecated Use runDailyPipeline({ job: "refresh" }). */
-export async function runRefreshJob() {
-  const { runDailyPipeline } = await import("./pipeline");
-  return runDailyPipeline({ trigger: "scheduler", job: "refresh" });
 }
 
 /**

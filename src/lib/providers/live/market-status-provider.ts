@@ -488,10 +488,13 @@ const publishedSession = createSessionResolver({
     withDeadline(
       fetchJsonOptional<TwseTableResponse>(sessionProbeUrl(now), {
         // Fresh on every memo period: http.ts would otherwise hand a
-        // long-running scheduler a 10-minute-old month.
+        // long-running scheduler a cached month.
         noCache: true,
         retries: 0,
         timeoutMs: SESSION_REQUEST_TIMEOUT_MS,
+        // A block page falls back to the mirror now rather than holding the
+        // host queue for the 3-minute cooldown; the next poll retries.
+        blockCooldown: false,
       }),
       SESSION_DEADLINE_MS,
       `no answer within ${SESSION_DEADLINE_MS / 1000}s`,

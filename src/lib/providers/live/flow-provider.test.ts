@@ -114,3 +114,37 @@ test("mergeFlows: absence from a PUBLISHED report is a zero; absence from both i
   );
   assert.ok(rows.every((r) => r.date.getTime() === NOV17.getTime()));
 });
+
+test("mergeFlows: a margin report not out yet leaves margin null instead of holding the flows back", () => {
+  const flows = new Map([["2317", { foreignNetShares: -3329158, trustNetShares: 866466, dealerNetShares: 2834471 }]]);
+  const tpexFlows = new Map([["6488", { foreignNetShares: 2464301, trustNetShares: -1684235, dealerNetShares: 174619 }]]);
+  const twseMargin = new Map([["2603", -184]]);
+  const rows = mergeFlows(
+    [
+      { ticker: "2317", exchange: "TWSE" },
+      { ticker: "2603", exchange: "TWSE" },
+      { ticker: "6488", exchange: "TPEx" },
+      { ticker: "9999", exchange: "TWSE" },
+    ],
+    NOV17,
+    [flows, tpexFlows],
+    [twseMargin, null], // TPEx margin not published
+  );
+  assert.deepEqual(
+    rows.map((r) => [r.ticker, r.foreignNet, r.marginChange]),
+    [
+      // Absent from the published margin report, but another one is missing,
+      // so its absence proves nothing: null, never a fabricated 0.
+      ["2317", -3329158, null],
+      ["2603", 0, -184],
+      ["6488", 2464301, null],
+    ],
+  );
+
+  // Neither margin report out: every institutional row still comes through.
+  const noMargin = mergeFlows([{ ticker: "2317", exchange: "TWSE" }], NOV17, [flows], [null, null]);
+  assert.deepEqual(
+    noMargin.map((r) => [r.ticker, r.foreignNet, r.marginChange]),
+    [["2317", -3329158, null]],
+  );
+});

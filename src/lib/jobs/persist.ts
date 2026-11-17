@@ -714,7 +714,9 @@ export async function writeIndustryFlows(
         foreignNet: r.foreignNet,
         trustNet: r.trustNet,
         dealerNet: r.dealerNet,
-        marginChange: r.marginChange,
+        // Unknown is omitted, not zeroed: a new row takes the column default
+        // and an existing one keeps its figure (as in writeMarketScopeFlows).
+        marginChange: r.marginChange ?? undefined,
         turnover: r.turnover,
         volumeChangePct: r.volumeChangePct,
         dataSourceId,

@@ -88,8 +88,17 @@ export class TwseInstitutionalFlowProvider implements InstitutionalFlowProvider 
   /**
    * Flows and margin change for one session.
    *
-   * Throws NotPublishedError naming every report that is not out for `date`
-   * yet; any other failure (HTTP, a block, a layout change) propagates as is.
+   * The two institutional reports (T86, TPEx 三大法人) are required: throws
+   * NotPublishedError naming each one not out for `date` yet, and any other
+   * failure (HTTP, a block, a layout change) propagates as is.
+   *
+   * The two per-stock margin reports are best-effort. They publish hours
+   * after the institutional ones (MI_MARGN was still out at 16:51 on
+   * 2026-11-17, when T86 and TPEx had been up since ~16:30), and the per-stock
+   * figure is never stored (persist.ts writes stock-scope margin as 0 by
+   * design), so waiting for them would only hold the session's flows — and
+   * the scores built on them — back until late evening. A margin report that
+   * is not available leaves `marginChange` null.
    */
   async fetchForDate(stocks: StockRef[], date: Date): Promise<InstitutionalFlowResult[]> {
     const day = utcDay(date);
@@ -113,11 +122,14 @@ export class TwseInstitutionalFlowProvider implements InstitutionalFlowProvider 
       ),
     ]);
 
-    const failure = settled.find(
+    const [twseFlowsResult, twseMarginResult, tpexFlowsResult, tpexMarginResult] = settled;
+    const required = [twseFlowsResult, tpexFlowsResult];
+
+    const failure = required.find(
       (s): s is PromiseRejectedResult => s.status === "rejected" && !(s.reason instanceof NotPublishedError),
     );
     if (failure) throw failure.reason;
-    const waiting = settled
+    const waiting = required
       .filter((s): s is PromiseRejectedResult => s.status === "rejected")
       .map((s) => s.reason as NotPublishedError);
     if (waiting.length) {
@@ -128,17 +140,26 @@ export class TwseInstitutionalFlowProvider implements InstitutionalFlowProvider 
       );
     }
 
-    const [twseFlows, twseMargin, tpexFlows, tpexMargin] = settled.map(
-      (s) => (s as PromiseFulfilledResult<unknown>).value,
-    ) as [Map<string, NetFlows>, Map<string, number>, Map<string, NetFlows>, Map<string, number>];
+    const twseFlows = (twseFlowsResult as PromiseFulfilledResult<Map<string, NetFlows>>).value;
+    const tpexFlows = (tpexFlowsResult as PromiseFulfilledResult<Map<string, NetFlows>>).value;
+    const twseMargin = optionalMargin("MI_MARGN", twseMarginResult as PromiseSettledResult<Map<string, number>>);
+    const tpexMargin = optionalMargin("TPEx margin", tpexMarginResult as PromiseSettledResult<Map<string, number>>);
 
-    return mergeFlows(
-      stocks,
-      day,
-      [twseFlows, tpexFlows],
-      [twseMargin, tpexMargin],
-    );
+    return mergeFlows(stocks, day, [twseFlows, tpexFlows], [twseMargin, tpexMargin]);
   }
+}
+
+/** A margin report's rows, or null (logged) when it is not out yet or failed. */
+function optionalMargin(report: string, result: PromiseSettledResult<Map<string, number>>): Map<string, number> | null {
+  if (result.status === "fulfilled") return result.value;
+  const reason = result.reason as unknown;
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (reason instanceof NotPublishedError) {
+    console.info(`[flows] ${report} not published yet; per-stock margin left null (${message})`);
+  } else {
+    console.warn(`[flows] ${report} unavailable; per-stock margin left null: ${message}`);
+  }
+  return null;
 }
 
 /**
@@ -150,17 +171,22 @@ export class TwseInstitutionalFlowProvider implements InstitutionalFlowProvider 
  * every margin-eligible security, so a stock missing from one had no such
  * activity. That inference is only sound because every report reaching this
  * function has already been confirmed published for `day`.
+ *
+ * A margin report passed as null was not available, so absence from the
+ * margin side proves nothing: a stock found in no published margin report
+ * gets `marginChange: null` instead of 0 while any margin report is missing.
  */
 export function mergeFlows(
   stocks: StockRef[],
   day: Date,
   flowReports: Array<Map<string, NetFlows>>,
-  marginReports: Array<Map<string, number>>,
+  marginReports: Array<Map<string, number> | null>,
 ): InstitutionalFlowResult[] {
   const flows = new Map<string, NetFlows>();
   for (const report of flowReports) for (const [ticker, flow] of report) flows.set(ticker, flow);
   const margin = new Map<string, number>();
-  for (const report of marginReports) for (const [ticker, lots] of report) margin.set(ticker, lots);
+  for (const report of marginReports) if (report) for (const [ticker, lots] of report) margin.set(ticker, lots);
+  const marginComplete = marginReports.every((report) => report !== null);
 
   const none: NetFlows = { foreignNetShares: 0, trustNetShares: 0, dealerNetShares: 0 };
   const results: InstitutionalFlowResult[] = [];
@@ -186,7 +212,7 @@ export function mergeFlows(
       // anywhere from 0.4x to 2.6x the exchange's own 融資金額 delta, and on
       // a session where cheap names gained margin while expensive ones shed
       // it, with the opposite sign.
-      marginChange: lots ?? 0,
+      marginChange: lots ?? (marginComplete ? 0 : null),
       turnover: 0, // derived from stored price data by the refresh job
       volumeChangePct: 0, // ditto
       unit: "shares",

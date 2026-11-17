@@ -415,8 +415,13 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
  * the host's full spacing (4 s on www.twse.com.tw) each time. The TTL keeps a
  * long-running scheduler from serving a stale session after the exchange
  * publishes the next one.
+ *
+ * Kept below the pipeline's 5-minute poll: the cache also holds a report's
+ * "not published yet" answer, and a TTL longer than the poll would replay
+ * that answer to the next poll and delay noticing the publication by a full
+ * cycle. Same window as the session probe's memo (SESSION_MEMO_TTL_MS).
  */
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 4 * 60 * 1000;
 const responseCache = new Map<string, { at: number; value: unknown }>();
 
 export async function fetchJson<T>(url: string, opts: FetchOptions = {}): Promise<T> {

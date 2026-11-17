@@ -65,8 +65,14 @@ export interface MarketDataProvider {
   source: ProviderSource;
   /** The most recent published session for the given stocks. */
   fetchLatest(stocks: StockRef[]): Promise<MarketQuote[]>;
+  /** One specific session's closes, from the cheap whole-market reports. The
+   *  pipeline uses it to pin every dataset to the session it resolved, rather
+   *  than letting the feed pick one. Throws NotPublishedError when the session
+   *  is not out yet. */
+  fetchSession?(stocks: StockRef[], session: Date): Promise<MarketQuote[]>;
   /** Every published session in [from, to]. Used by the history backfill;
-   *  optional because a real-time-only feed cannot serve it. */
+   *  optional because a real-time-only feed cannot serve it. Per stock-month,
+   *  so far too expensive for the daily run — that is what fetchSession is for. */
   fetchRange?(stocks: StockRef[], from: Date, to: Date): Promise<MarketQuote[]>;
 }
 
@@ -82,7 +88,13 @@ export interface InstitutionalFlowResult {
   foreignNet: number;
   trustNet: number;
   dealerNet: number;
-  marginChange: number;
+  /**
+   * Margin financing change; null when the margin report is not out yet.
+   * Per-stock margin (MI_MARGN / TPEx 融資) publishes hours after the three
+   * institutional nets, so the live provider does not hold the flows back for
+   * it. The stock-scope writer never stores this figure (see persist.ts).
+   */
+  marginChange: number | null;
   turnover: number;
   volumeChangePct: number;
   breakoutCount?: number;
