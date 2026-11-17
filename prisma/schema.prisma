@@ -596,3 +596,96 @@ model IndustrySentimentSnapshot {
   @@index([date, rank])
   @@map("industry_sentiment_snapshots")
 }
+
+// ---------------------------------------------------------------------------
+// Job execution log (data health)
+//
+// Every scheduled or manual job invocation writes one JobRun, and every
+// dataset step inside it one DatasetRun. They exist so "is the data current,
+// and if not, which step failed and why" is answerable from the database —
+// stdout from a serverless function is gone after the request. Nothing in
+// the scoring or display path reads them except the health page, the public
+// /api/health summary and the pipeline's own "what is still missing for this
+// session" check.
+// ---------------------------------------------------------------------------
+
+/// One execution of a job: the daily pipeline, an intraday poll, alerts,
+/// brief, verify, or a CLI backfill.
+model JobRun {
+  id         String    @id @default(cuid())
+  /// "daily" | "refresh" | "intraday" | "alerts" | "brief" | "verify" | "backfill" | "import-indicators"
+  job        String
+  /// "vercel-cron" | "external-cron" | "github-actions" | "route" | "cli" | "scheduler"
+  trigger    String
+  /// Market session the run targeted (UTC-midnight key), when it is known.
+  session    DateTime?
+  /// "running" | "success" | "partial" | "failed" | "skipped"
+  status     String    @default("running")
+  /// Why a run was skipped, or a one-line summary of a partial one.
+  reason     String?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  datasets DatasetRun[]
+
+  @@index([job, startedAt])
+  @@index([status, startedAt])
+  @@index([session])
+  @@map("job_runs")
+}
+
+/// One dataset step inside a JobRun, e.g. the session's listed prices or the
+/// TPEx institutional-flow report. Completion is tracked per dataset, never
+/// inferred from a row count across the whole session.
+model DatasetRun {
+  id         String    @id @default(cuid())
+  jobRunId   String
+  /// See DATASETS in src/lib/jobs/run-log.ts.
+  dataset    String
+  /// DataSource.key of the provider that produced it, when there is one.
+  provider   String?
+  /// Market session the dataset describes (UTC-midnight key).
+  session    DateTime?
+  /// "success" | "partial" | "failed" | "skipped" | "waiting"
+  /// ("waiting" = the source answered but has not published this session yet)
+  status     String
+  /// Rows the provider returned.
+  received   Int       @default(0)
+  /// Rows written to the database.
+  persisted  Int       @default(0)
+  /// Rows a complete dataset should have, when that is knowable.
+  expected   Int?
+  /// HTTP status of the failing request, when the failure was an HTTP one.
+  httpStatus Int?
+  error      String?
+  /// The data's own as-of time from the source (session close, tick time),
+  /// as opposed to when we fetched it.
+  sourceAsOf DateTime?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  jobRun JobRun @relation(fields: [jobRunId], references: [id], onDelete: Cascade)
+
+  @@index([jobRunId])
+  @@index([dataset, startedAt])
+  @@index([dataset, session, status])
+  @@map("dataset_runs")
+}
+
+/// Lease lock so overlapping invocations of the same job (Vercel cron, an
+/// external scheduler and a CLI run can all fire at once) never write the
+/// same session concurrently. A lease rather than a Postgres advisory lock:
+/// DATABASE_URL goes through PgBouncer in transaction mode, where a
+/// session-level advisory lock is not guaranteed to be released on the
+/// connection that took it. See src/lib/jobs/job-lock.ts.
+model JobLock {
+  name      String   @id
+  holder    String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@map("job_locks")
+}
